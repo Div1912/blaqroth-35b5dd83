@@ -73,7 +73,7 @@ const Auth = () => {
 
     try {
       if (mode === 'signup') {
-        const { error } = await signUp(formData.email, formData.password, formData.fullName);
+        const { error } = await signUp(formData.email, formData.password, formData.fullName, formData.phone, formData.countryCode);
         if (error) {
           if (error.message.includes('already registered')) {
             toast.error('This email is already registered. Please sign in.');
@@ -81,7 +81,6 @@ const Auth = () => {
             toast.error(error.message);
           }
         } else {
-          // Store phone number in customers table after signup
           toast.success('Account created! Please check your email to verify your account.');
         }
       } else {

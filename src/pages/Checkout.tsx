@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Check, MapPin, CreditCard, Package, Truck } from 'lucide-react';
+import { ArrowLeft, Check, MapPin, CreditCard, Package, Truck, Plus, ChevronDown } from 'lucide-react';
 import { AnimatedBackground } from '@/components/AnimatedBackground';
 import { Header } from '@/components/Header';
 import { Button } from '@/components/ui/button';
@@ -9,10 +9,46 @@ import { useCartStore } from '@/store/cartStore';
 import { useAuth } from '@/hooks/useAuth';
 import { formatPrice } from '@/lib/formatCurrency';
 import { indianStates } from '@/lib/countryCodes';
+import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
 type CheckoutStep = 'shipping' | 'payment' | 'confirmation';
 type PaymentMethod = 'cod' | 'razorpay';
+
+interface Address {
+  id: string;
+  full_name: string;
+  phone: string;
+  address_line1: string;
+  address_line2: string | null;
+  city: string;
+  state: string;
+  postal_code: string;
+  country: string | null;
+  is_default: boolean | null;
+}
+
+interface AddressFormData {
+  full_name: string;
+  phone: string;
+  address_line1: string;
+  address_line2: string;
+  city: string;
+  state: string;
+  postal_code: string;
+  country: string;
+}
+
+const emptyForm: AddressFormData = {
+  full_name: '',
+  phone: '',
+  address_line1: '',
+  address_line2: '',
+  city: '',
+  state: '',
+  postal_code: '',
+  country: 'India',
+};
 
 const Checkout = () => {
   const navigate = useNavigate();
@@ -23,6 +59,14 @@ const Checkout = () => {
   const { items, getTotal, clearCart } = useCartStore();
   const total = getTotal();
   const shipping = total > 50000 ? 0 : 500;
+
+  // Address state
+  const [addresses, setAddresses] = useState<Address[]>([]);
+  const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
+  const [showAddressForm, setShowAddressForm] = useState(false);
+  const [formData, setFormData] = useState<AddressFormData>(emptyForm);
+  const [loadingAddresses, setLoadingAddresses] = useState(true);
+  const [savingAddress, setSavingAddress] = useState(false);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -43,6 +87,76 @@ const Checkout = () => {
     }
   }, [user, authLoading, navigate, items.length]);
 
+  // Fetch saved addresses
+  useEffect(() => {
+    if (user) {
+      fetchAddresses();
+    }
+  }, [user]);
+
+  const fetchAddresses = async () => {
+    if (!user) return;
+    
+    setLoadingAddresses(true);
+    const { data, error } = await supabase
+      .from('addresses')
+      .select('*')
+      .eq('customer_id', user.id)
+      .order('is_default', { ascending: false });
+
+    if (error) {
+      console.error('Failed to load addresses:', error);
+    } else {
+      setAddresses(data || []);
+      // Auto-select default address or first address
+      const defaultAddr = data?.find(a => a.is_default) || data?.[0];
+      if (defaultAddr) {
+        setSelectedAddressId(defaultAddr.id);
+      } else {
+        setShowAddressForm(true);
+      }
+    }
+    setLoadingAddresses(false);
+  };
+
+  const handleSaveNewAddress = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) return;
+
+    setSavingAddress(true);
+    try {
+      const { data, error } = await supabase
+        .from('addresses')
+        .insert({
+          customer_id: user.id,
+          full_name: formData.full_name,
+          phone: formData.phone,
+          address_line1: formData.address_line1,
+          address_line2: formData.address_line2 || null,
+          city: formData.city,
+          state: formData.state,
+          postal_code: formData.postal_code,
+          country: formData.country,
+          is_default: addresses.length === 0,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      toast.success('Address saved');
+      setAddresses([...addresses, data]);
+      setSelectedAddressId(data.id);
+      setShowAddressForm(false);
+      setFormData(emptyForm);
+    } catch (error) {
+      toast.error('Failed to save address');
+      console.error(error);
+    } finally {
+      setSavingAddress(false);
+    }
+  };
+
   const steps = [
     { id: 'shipping', label: 'Shipping', icon: MapPin },
     { id: 'payment', label: 'Payment', icon: CreditCard },
@@ -50,10 +164,16 @@ const Checkout = () => {
   ];
 
   const handlePlaceOrder = () => {
+    if (!selectedAddressId && !showAddressForm) {
+      toast.error('Please select a shipping address');
+      return;
+    }
     setCurrentStep('confirmation');
     clearCart();
     toast.success('Order placed successfully!');
   };
+
+  const selectedAddress = addresses.find(a => a.id === selectedAddressId);
 
   if (authLoading) {
     return (
@@ -120,10 +240,13 @@ const Checkout = () => {
         <div className="container mx-auto px-6 md:px-12">
           {currentStep !== 'confirmation' && (
             <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="mb-8">
-              <Link to="/shop" className="inline-flex items-center text-muted-foreground hover:text-foreground transition-colors">
+              <button
+                onClick={() => navigate(-1)}
+                className="inline-flex items-center text-muted-foreground hover:text-foreground transition-colors"
+              >
                 <ArrowLeft className="h-4 w-4 mr-2" />
-                Continue Shopping
-              </Link>
+                Back
+              </button>
             </motion.div>
           )}
 
@@ -151,53 +274,202 @@ const Checkout = () => {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
             <div className="lg:col-span-2">
               {currentStep === 'shipping' && (
-                <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="glass-panel p-8 md:p-12">
-                  <h2 className="font-display text-3xl tracking-wider mb-8">Shipping Address</h2>
-                  <div className="space-y-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="text-sm text-muted-foreground block mb-2">First Name</label>
-                        <input type="text" className="w-full bg-secondary/50 border border-white/10 rounded px-4 py-3 focus:outline-none focus:ring-1 focus:ring-primary" required />
-                      </div>
-                      <div>
-                        <label className="text-sm text-muted-foreground block mb-2">Last Name</label>
-                        <input type="text" className="w-full bg-secondary/50 border border-white/10 rounded px-4 py-3 focus:outline-none focus:ring-1 focus:ring-primary" required />
-                      </div>
+                <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="space-y-6">
+                  <div className="glass-panel p-8 md:p-12">
+                    <div className="flex items-center justify-between mb-8">
+                      <h2 className="font-display text-3xl tracking-wider">Shipping Address</h2>
+                      {addresses.length > 0 && !showAddressForm && (
+                        <Button variant="glass" size="sm" onClick={() => setShowAddressForm(true)}>
+                          <Plus className="h-4 w-4 mr-2" />
+                          Add New
+                        </Button>
+                      )}
                     </div>
-                    <div>
-                      <label className="text-sm text-muted-foreground block mb-2">Phone</label>
-                      <input type="tel" className="w-full bg-secondary/50 border border-white/10 rounded px-4 py-3 focus:outline-none focus:ring-1 focus:ring-primary" placeholder="+91 9876543210" required />
-                    </div>
-                    <div>
-                      <label className="text-sm text-muted-foreground block mb-2">Street Address</label>
-                      <input type="text" className="w-full bg-secondary/50 border border-white/10 rounded px-4 py-3 focus:outline-none focus:ring-1 focus:ring-primary" required />
-                    </div>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                      <div>
-                        <label className="text-sm text-muted-foreground block mb-2">City</label>
-                        <input type="text" className="w-full bg-secondary/50 border border-white/10 rounded px-4 py-3 focus:outline-none focus:ring-1 focus:ring-primary" required />
-                      </div>
-                      <div>
-                        <label className="text-sm text-muted-foreground block mb-2">State</label>
-                        <select className="w-full bg-secondary/50 border border-white/10 rounded px-4 py-3 focus:outline-none focus:ring-1 focus:ring-primary" required>
-                          <option value="">Select State</option>
-                          {indianStates.map((state) => (<option key={state} value={state}>{state}</option>))}
-                        </select>
-                      </div>
-                      <div>
-                        <label className="text-sm text-muted-foreground block mb-2">PIN Code</label>
-                        <input type="text" className="w-full bg-secondary/50 border border-white/10 rounded px-4 py-3 focus:outline-none focus:ring-1 focus:ring-primary" placeholder="400001" required />
-                      </div>
-                    </div>
+
+                    {loadingAddresses ? (
+                      <p className="text-muted-foreground">Loading addresses...</p>
+                    ) : (
+                      <>
+                        {/* Saved Addresses */}
+                        {!showAddressForm && addresses.length > 0 && (
+                          <div className="space-y-4 mb-6">
+                            {addresses.map((address) => (
+                              <label
+                                key={address.id}
+                                className={`block p-4 rounded-lg border-2 cursor-pointer transition-all ${
+                                  selectedAddressId === address.id
+                                    ? 'border-primary bg-primary/10'
+                                    : 'border-white/10 hover:border-white/20'
+                                }`}
+                              >
+                                <div className="flex items-start gap-4">
+                                  <input
+                                    type="radio"
+                                    name="address"
+                                    value={address.id}
+                                    checked={selectedAddressId === address.id}
+                                    onChange={() => setSelectedAddressId(address.id)}
+                                    className="mt-1"
+                                  />
+                                  <div className="flex-1">
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <p className="font-medium">{address.full_name}</p>
+                                      {address.is_default && (
+                                        <span className="px-2 py-0.5 bg-primary/20 text-primary text-xs rounded">
+                                          Default
+                                        </span>
+                                      )}
+                                    </div>
+                                    <p className="text-sm text-muted-foreground">{address.phone}</p>
+                                    <p className="text-sm text-muted-foreground mt-1">
+                                      {address.address_line1}
+                                      {address.address_line2 && `, ${address.address_line2}`}
+                                    </p>
+                                    <p className="text-sm text-muted-foreground">
+                                      {address.city}, {address.state} - {address.postal_code}
+                                    </p>
+                                  </div>
+                                </div>
+                              </label>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Add New Address Form */}
+                        <AnimatePresence mode="wait">
+                          {showAddressForm && (
+                            <motion.form
+                              initial={{ opacity: 0, height: 0 }}
+                              animate={{ opacity: 1, height: 'auto' }}
+                              exit={{ opacity: 0, height: 0 }}
+                              onSubmit={handleSaveNewAddress}
+                              className="space-y-6"
+                            >
+                              {addresses.length > 0 && (
+                                <div className="flex items-center justify-between pb-4 border-b border-white/10">
+                                  <h3 className="font-display text-xl">Add New Address</h3>
+                                  <Button type="button" variant="ghost" size="sm" onClick={() => setShowAddressForm(false)}>
+                                    Cancel
+                                  </Button>
+                                </div>
+                              )}
+                              
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                  <label className="text-sm text-muted-foreground block mb-2">Full Name</label>
+                                  <input
+                                    type="text"
+                                    value={formData.full_name}
+                                    onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
+                                    className="w-full bg-secondary/50 border border-white/10 rounded px-4 py-3 focus:outline-none focus:ring-1 focus:ring-primary"
+                                    required
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-sm text-muted-foreground block mb-2">Phone</label>
+                                  <input
+                                    type="tel"
+                                    value={formData.phone}
+                                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                                    className="w-full bg-secondary/50 border border-white/10 rounded px-4 py-3 focus:outline-none focus:ring-1 focus:ring-primary"
+                                    placeholder="+91 9876543210"
+                                    required
+                                  />
+                                </div>
+                              </div>
+                              <div>
+                                <label className="text-sm text-muted-foreground block mb-2">Street Address</label>
+                                <input
+                                  type="text"
+                                  value={formData.address_line1}
+                                  onChange={(e) => setFormData({ ...formData, address_line1: e.target.value })}
+                                  className="w-full bg-secondary/50 border border-white/10 rounded px-4 py-3 focus:outline-none focus:ring-1 focus:ring-primary"
+                                  required
+                                />
+                              </div>
+                              <div>
+                                <label className="text-sm text-muted-foreground block mb-2">Address Line 2 (Optional)</label>
+                                <input
+                                  type="text"
+                                  value={formData.address_line2}
+                                  onChange={(e) => setFormData({ ...formData, address_line2: e.target.value })}
+                                  className="w-full bg-secondary/50 border border-white/10 rounded px-4 py-3 focus:outline-none focus:ring-1 focus:ring-primary"
+                                />
+                              </div>
+                              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                                <div>
+                                  <label className="text-sm text-muted-foreground block mb-2">City</label>
+                                  <input
+                                    type="text"
+                                    value={formData.city}
+                                    onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                                    className="w-full bg-secondary/50 border border-white/10 rounded px-4 py-3 focus:outline-none focus:ring-1 focus:ring-primary"
+                                    required
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-sm text-muted-foreground block mb-2">State</label>
+                                  <select
+                                    value={formData.state}
+                                    onChange={(e) => setFormData({ ...formData, state: e.target.value })}
+                                    className="w-full bg-secondary/50 border border-white/10 rounded px-4 py-3 focus:outline-none focus:ring-1 focus:ring-primary"
+                                    required
+                                  >
+                                    <option value="">Select State</option>
+                                    {indianStates.map((state) => (
+                                      <option key={state} value={state}>{state}</option>
+                                    ))}
+                                  </select>
+                                </div>
+                                <div>
+                                  <label className="text-sm text-muted-foreground block mb-2">PIN Code</label>
+                                  <input
+                                    type="text"
+                                    value={formData.postal_code}
+                                    onChange={(e) => setFormData({ ...formData, postal_code: e.target.value })}
+                                    className="w-full bg-secondary/50 border border-white/10 rounded px-4 py-3 focus:outline-none focus:ring-1 focus:ring-primary"
+                                    placeholder="400001"
+                                    required
+                                  />
+                                </div>
+                              </div>
+                              
+                              <Button type="submit" variant="hero" size="lg" className="w-full" disabled={savingAddress}>
+                                {savingAddress ? 'Saving...' : 'Save & Use This Address'}
+                              </Button>
+                            </motion.form>
+                          )}
+                        </AnimatePresence>
+                      </>
+                    )}
+
+                    {!showAddressForm && selectedAddressId && (
+                      <Button variant="hero" size="xl" className="w-full mt-8" onClick={() => setCurrentStep('payment')}>
+                        Continue to Payment
+                      </Button>
+                    )}
                   </div>
-                  <Button variant="hero" size="xl" className="w-full mt-8" onClick={() => setCurrentStep('payment')}>
-                    Continue to Payment
-                  </Button>
                 </motion.div>
               )}
 
               {currentStep === 'payment' && (
                 <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="glass-panel p-8 md:p-12">
+                  {/* Selected Address Summary */}
+                  {selectedAddress && (
+                    <div className="mb-8 p-4 bg-secondary/30 rounded-lg">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm text-muted-foreground">Shipping to:</span>
+                        <Button variant="ghost" size="sm" onClick={() => setCurrentStep('shipping')}>
+                          Change
+                        </Button>
+                      </div>
+                      <p className="font-medium">{selectedAddress.full_name}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {selectedAddress.address_line1}, {selectedAddress.city}, {selectedAddress.state} - {selectedAddress.postal_code}
+                      </p>
+                    </div>
+                  )}
+
                   <h2 className="font-display text-3xl tracking-wider mb-8">Payment Method</h2>
                   <div className="space-y-4">
                     <label className={`flex items-center gap-4 p-4 rounded-lg border-2 cursor-pointer transition-all ${paymentMethod === 'cod' ? 'border-primary bg-primary/10' : 'border-white/10 hover:border-white/20'}`}>

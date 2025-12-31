@@ -1,11 +1,14 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
+import { ArrowLeft } from 'lucide-react';
 import { AnimatedBackground } from '@/components/AnimatedBackground';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { CartDrawer } from '@/components/CartDrawer';
 
 const About = () => {
+  const navigate = useNavigate();
   const [scrollProgress, setScrollProgress] = useState(0);
 
   useEffect(() => {
@@ -27,6 +30,20 @@ const About = () => {
 
       <main className="pt-32 pb-20">
         <div className="container mx-auto px-6 md:px-12">
+          {/* Back Button */}
+          <motion.div
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            className="mb-8"
+          >
+            <button
+              onClick={() => navigate(-1)}
+              className="inline-flex items-center text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back
+            </button>
+          </motion.div>
           {/* Page Header */}
           <motion.div
             initial={{ opacity: 0, y: 30 }}
