@@ -76,7 +76,12 @@ const ProductDetail = () => {
   useEffect(() => {
     const handleScroll = () => {
       const scrollHeight = document.documentElement.scrollHeight - window.innerHeight;
-      const progress = Math.min(window.scrollY / scrollHeight, 1);
+      if (scrollHeight <= 0) {
+        setScrollProgress(0);
+        return;
+      }
+      const raw = window.scrollY / scrollHeight;
+      const progress = Number.isFinite(raw) ? Math.min(Math.max(raw, 0), 1) : 0;
       setScrollProgress(progress);
     };
 

@@ -20,11 +20,13 @@ function AnimatedShape({ scrollProgress, colorPhase }: AnimatedShapeProps) {
       new THREE.Color('#4a4a4a'), // Slate
       new THREE.Color('#c9a962'), // Back to gold
     ];
-    
-    const index = Math.floor(colorPhase * (colors.length - 1));
+
+    const phase = Number.isFinite(colorPhase) ? Math.min(Math.max(colorPhase, 0), 1) : 0;
+    const scaled = phase * (colors.length - 1);
+    const index = Math.floor(scaled);
     const nextIndex = Math.min(index + 1, colors.length - 1);
-    const t = (colorPhase * (colors.length - 1)) % 1;
-    
+    const t = scaled - index;
+
     return colors[index].clone().lerp(colors[nextIndex], t);
   }, [colorPhase]);
 
@@ -69,8 +71,9 @@ interface AnimatedBackgroundProps {
 }
 
 export function AnimatedBackground({ scrollProgress }: AnimatedBackgroundProps) {
+  const safeScrollProgress = Number.isFinite(scrollProgress) ? Math.min(Math.max(scrollProgress, 0), 1) : 0;
   // Color phase cycles through the palette based on scroll
-  const colorPhase = (scrollProgress * 2) % 1;
+  const colorPhase = (safeScrollProgress * 2) % 1;
   
   return (
     <div className="fixed inset-0 -z-10">
