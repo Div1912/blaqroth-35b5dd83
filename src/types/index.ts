@@ -17,6 +17,7 @@ export interface Product {
 export interface ProductColor {
   name: string;
   hex: string;
+  image?: string;
 }
 
 export interface CartItem {
@@ -72,5 +73,6 @@ export interface Collection {
   slug: string;
   description: string;
   color: string;
+  image?: string;
   products: Product[];
 }
