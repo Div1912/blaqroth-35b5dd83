@@ -1,16 +1,22 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, Loader2 } from 'lucide-react';
 import { AnimatedBackground } from '@/components/AnimatedBackground';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { CartDrawer } from '@/components/CartDrawer';
 import { BackButton } from '@/components/BackButton';
-import { collections, products } from '@/data/products';
+import { useCollections } from '@/hooks/useCollections';
+import { useProducts } from '@/hooks/useProducts';
+import { useSmoothScroll } from '@/hooks/useSmoothScroll';
 
 const Collections = () => {
   const [scrollProgress, setScrollProgress] = useState(0);
+  const { data: collections, isLoading: collectionsLoading } = useCollections();
+  const { data: products } = useProducts();
+
+  useSmoothScroll();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -23,14 +29,20 @@ const Collections = () => {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  // Get product count for each collection
+  // Get product count for each collection (by matching slug in product name or description)
   const getProductCount = (collectionSlug: string) => {
-    return products.filter(p => p.collection === collectionSlug).length;
+    return products?.filter(p => 
+      p.name.toLowerCase().includes(collectionSlug) || 
+      p.description?.toLowerCase().includes(collectionSlug)
+    ).length || 0;
   };
 
   // Get featured products for each collection
   const getCollectionProducts = (collectionSlug: string) => {
-    return products.filter(p => p.collection === collectionSlug).slice(0, 3);
+    return products?.filter(p => 
+      p.name.toLowerCase().includes(collectionSlug) || 
+      p.description?.toLowerCase().includes(collectionSlug)
+    ).slice(0, 3) || [];
   };
 
   return (
@@ -65,111 +77,135 @@ const Collections = () => {
             </h1>
           </motion.div>
 
+          {/* Loading State */}
+          {collectionsLoading && (
+            <div className="flex items-center justify-center py-20">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          )}
+
           {/* Collections */}
-          <div className="space-y-32">
-            {collections.map((collection, index) => {
-              const collectionProducts = getCollectionProducts(collection.slug);
-              const productCount = getProductCount(collection.slug);
+          {!collectionsLoading && collections && (
+            <div className="space-y-32">
+              {collections.map((collection, index) => {
+                const collectionProducts = getCollectionProducts(collection.slug);
+                const productCount = getProductCount(collection.slug);
 
-              return (
-                <motion.section
-                  key={collection.id}
-                  id={collection.slug}
-                  initial={{ opacity: 0, y: 50 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true, margin: '-100px' }}
-                  transition={{ duration: 0.8 }}
-                  className="scroll-mt-32"
-                >
-                  {/* Collection Header */}
-                  <div className={`flex flex-col ${index % 2 === 0 ? 'md:flex-row' : 'md:flex-row-reverse'} gap-8 mb-12`}>
-                    {/* Collection Image */}
-                    <Link
-                      to={`/shop?collection=${collection.slug}`}
-                      className="w-full md:w-1/2 aspect-[4/3] relative overflow-hidden rounded-lg group"
-                    >
-                      {collection.image ? (
-                        <img
-                          src={collection.image}
-                          alt={collection.name}
-                          className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-                        />
-                      ) : (
-                        <div
-                          className="absolute inset-0"
-                          style={{
-                            background: `linear-gradient(135deg, ${collection.color}30, ${collection.color}10)`,
-                          }}
-                        />
-                      )}
-                      <div className="absolute inset-0 bg-background/40 flex items-center justify-center">
-                        <span
-                          className="font-display text-5xl md:text-7xl tracking-[0.2em] text-foreground opacity-80 group-hover:opacity-100 transition-opacity duration-500 drop-shadow-lg"
-                        >
-                          {collection.name.split(' ')[0]}
-                        </span>
-                      </div>
-                    </Link>
-
-                    {/* Collection Info */}
-                    <div className="w-full md:w-1/2 flex flex-col justify-center">
-                      <h2 className="font-display text-4xl md:text-5xl tracking-wider mb-6">
-                        {collection.name}
-                      </h2>
-                      <p className="text-muted-foreground text-lg leading-relaxed mb-6">
-                        {collection.description}
-                      </p>
-                      <p className="text-sm text-muted-foreground mb-8">
-                        {productCount} {productCount === 1 ? 'product' : 'products'} in this collection
-                      </p>
-                      <div
-                        className="h-1 w-20 rounded-full mb-8"
-                        style={{ backgroundColor: collection.color }}
-                      />
+                return (
+                  <motion.section
+                    key={collection.id}
+                    id={collection.slug}
+                    initial={{ opacity: 0, y: 50 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true, margin: '-100px' }}
+                    transition={{ duration: 0.8 }}
+                    className="scroll-mt-32"
+                  >
+                    {/* Collection Header */}
+                    <div className={`flex flex-col ${index % 2 === 0 ? 'md:flex-row' : 'md:flex-row-reverse'} gap-8 mb-12`}>
+                      {/* Collection Image */}
                       <Link
                         to={`/shop?collection=${collection.slug}`}
-                        className="inline-flex items-center gap-2 text-primary hover:gap-4 transition-all group"
+                        className="w-full md:w-1/2 aspect-[4/3] relative overflow-hidden rounded-lg group"
                       >
-                        <span className="tracking-wider uppercase text-sm font-medium">
-                          View Collection
-                        </span>
-                        <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
+                        {collection.image_url ? (
+                          <img
+                            src={collection.image_url}
+                            alt={collection.name}
+                            className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                          />
+                        ) : (
+                          <div
+                            className="absolute inset-0"
+                            style={{
+                              background: `linear-gradient(135deg, ${collection.color}30, ${collection.color}10)`,
+                            }}
+                          />
+                        )}
+                        <div className="absolute inset-0 bg-background/40 flex items-center justify-center">
+                          <span
+                            className="font-display text-5xl md:text-7xl tracking-[0.2em] text-foreground opacity-80 group-hover:opacity-100 transition-opacity duration-500 drop-shadow-lg"
+                          >
+                            {collection.name.split(' ')[0]}
+                          </span>
+                        </div>
                       </Link>
-                    </div>
-                  </div>
 
-                  {/* Collection Products Preview */}
-                  {collectionProducts.length > 0 && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-                      {collectionProducts.map((product) => (
+                      {/* Collection Info */}
+                      <div className="w-full md:w-1/2 flex flex-col justify-center">
+                        <h2 className="font-display text-4xl md:text-5xl tracking-wider mb-6">
+                          {collection.name}
+                        </h2>
+                        <p className="text-muted-foreground text-lg leading-relaxed mb-6">
+                          {collection.description}
+                        </p>
+                        <p className="text-sm text-muted-foreground mb-8">
+                          {productCount} {productCount === 1 ? 'product' : 'products'} in this collection
+                        </p>
+                        <div
+                          className="h-1 w-20 rounded-full mb-8"
+                          style={{ backgroundColor: collection.color || '#c9a962' }}
+                        />
                         <Link
-                          key={product.id}
-                          to={`/product/${product.id}`}
-                          className="group glass-card overflow-hidden"
+                          to={`/shop?collection=${collection.slug}`}
+                          className="inline-flex items-center gap-2 text-primary hover:gap-4 transition-all group"
                         >
-                          <div className="aspect-[3/4] overflow-hidden">
-                            <img
-                              src={product.images[0]}
-                              alt={product.name}
-                              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                            />
-                          </div>
-                          <div className="p-4">
-                            <h3 className="font-medium truncate group-hover:text-primary transition-colors">
-                              {product.name}
-                            </h3>
-                            <p className="text-muted-foreground text-sm">
-                              ₹{(product.price / 100).toLocaleString('en-IN')}
-                            </p>
-                          </div>
+                          <span className="tracking-wider uppercase text-sm font-medium">
+                            View Collection
+                          </span>
+                          <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
                         </Link>
-                      ))}
+                      </div>
                     </div>
-                  )}
-                </motion.section>
-              );
-            })}
-          </div>
+
+                    {/* Collection Products Preview */}
+                    {collectionProducts.length > 0 && (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+                        {collectionProducts.map((product) => {
+                          const primaryImage = product.product_images?.find(img => img.is_primary)?.url 
+                            || product.product_images?.[0]?.url 
+                            || '/placeholder.svg';
+                          
+                          return (
+                            <Link
+                              key={product.id}
+                              to={`/product/${product.id}`}
+                              className="group glass-card overflow-hidden"
+                            >
+                              <div className="aspect-[3/4] overflow-hidden">
+                                <img
+                                  src={primaryImage}
+                                  alt={product.name}
+                                  className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                                />
+                              </div>
+                              <div className="p-4">
+                                <h3 className="font-medium truncate group-hover:text-primary transition-colors">
+                                  {product.name}
+                                </h3>
+                                <p className="text-muted-foreground text-sm">
+                                  ₹{(product.price / 100).toLocaleString('en-IN')}
+                                </p>
+                              </div>
+                            </Link>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </motion.section>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Empty State */}
+          {!collectionsLoading && (!collections || collections.length === 0) && (
+            <div className="text-center py-20">
+              <p className="text-muted-foreground text-lg">
+                No collections available yet.
+              </p>
+            </div>
+          )}
         </div>
       </main>
 
