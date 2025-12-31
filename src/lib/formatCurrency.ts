@@ -6,3 +6,5 @@ export function formatPrice(price: number): string {
     maximumFractionDigits: 0,
   }).format(price);
 }
+
+export const formatCurrency = formatPrice;

@@ -13,6 +13,10 @@ import Account from "./pages/Account";
 import Checkout from "./pages/Checkout";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
+import AdminLayout from "./pages/admin/AdminLayout";
+import AdminDashboard from "./pages/admin/AdminDashboard";
+import AdminProducts from "./pages/admin/AdminProducts";
+import AdminOrders from "./pages/admin/AdminOrders";
 
 const queryClient = new QueryClient();
 
@@ -32,6 +36,14 @@ const App = () => (
             <Route path="/account" element={<Account />} />
             <Route path="/checkout" element={<Checkout />} />
             <Route path="/auth" element={<Auth />} />
+            
+            {/* Admin Routes */}
+            <Route path="/admin" element={<AdminLayout />}>
+              <Route index element={<AdminDashboard />} />
+              <Route path="products" element={<AdminProducts />} />
+              <Route path="orders" element={<AdminOrders />} />
+            </Route>
+            
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

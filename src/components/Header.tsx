@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Menu, X, ShoppingBag, User, Heart } from 'lucide-react';
+import { Menu, X, ShoppingBag, User, Heart, Shield } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useCartStore } from '@/store/cartStore';
 import { useWishlistStore } from '@/store/wishlistStore';
 import { useAuth } from '@/hooks/useAuth';
+import { useAdmin } from '@/hooks/useAdmin';
 import { NotificationDropdown } from '@/components/NotificationDropdown';
 
 const navLinks = [
@@ -19,6 +20,7 @@ export function Header() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const location = useLocation();
   const { user } = useAuth();
+  const { isAdmin } = useAdmin();
   const { openCart, getItemCount } = useCartStore();
   const { items: wishlistItems } = useWishlistStore();
   const itemCount = getItemCount();
@@ -53,6 +55,14 @@ export function Header() {
             </nav>
 
             <div className="flex items-center space-x-2 md:space-x-4">
+              {isAdmin && (
+                <Link to="/admin">
+                  <Button variant="ghost" size="icon" className="relative hidden md:flex" title="Admin Panel">
+                    <Shield className="h-5 w-5" />
+                  </Button>
+                </Link>
+              )}
+              
               {user && <NotificationDropdown />}
               
               <Link to="/account">
