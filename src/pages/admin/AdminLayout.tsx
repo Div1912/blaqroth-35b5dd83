@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { useNavigate, Outlet, Link, useLocation } from 'react-router-dom';
 import { useAdmin } from '@/hooks/useAdmin';
 import { useAuth } from '@/hooks/useAuth';
-import { Package, ShoppingCart, LayoutDashboard, LogOut, Users } from 'lucide-react';
+import { Package, ShoppingCart, LayoutDashboard, LogOut, Tag, Layers } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -38,14 +38,15 @@ const AdminLayout = () => {
   const navItems = [
     { path: '/admin', icon: LayoutDashboard, label: 'Dashboard' },
     { path: '/admin/products', icon: Package, label: 'Products' },
+    { path: '/admin/collections', icon: Layers, label: 'Collections' },
     { path: '/admin/orders', icon: ShoppingCart, label: 'Orders' },
-    { path: '/admin/offers', icon: Users, label: 'Offers' },
+    { path: '/admin/offers', icon: Tag, label: 'Offers' },
   ];
 
   return (
     <div className="min-h-screen bg-background flex">
       {/* Sidebar */}
-      <aside className="w-64 bg-card border-r border-border">
+      <aside className="w-64 bg-card border-r border-border relative">
         <div className="p-6">
           <h1 className="text-xl font-bold text-foreground">Admin Panel</h1>
         </div>
@@ -67,8 +68,8 @@ const AdminLayout = () => {
         </nav>
         <div className="absolute bottom-4 left-4 right-4">
           <Button
-            variant="ghost"
-            className="w-full justify-start gap-3"
+            variant="outline"
+            className="w-full justify-start gap-3 text-muted-foreground hover:text-foreground"
             onClick={() => signOut()}
           >
             <LogOut className="h-5 w-5" />

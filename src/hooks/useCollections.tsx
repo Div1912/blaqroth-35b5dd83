@@ -14,14 +14,22 @@ export interface Collection {
   updated_at: string | null;
 }
 
-export const useCollections = () => {
+export const useCollections = (includeInactive = false) => {
   return useQuery({
-    queryKey: ['collections'],
+    queryKey: ['collections', includeInactive],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from('collections')
         .select('*')
         .order('display_order', { ascending: true });
+
+      // For public pages, only show active collections
+      // Admin pages will pass includeInactive=true and RLS will handle access
+      if (!includeInactive) {
+        query = query.eq('is_active', true);
+      }
+
+      const { data, error } = await query;
 
       if (error) throw error;
       return data as Collection[];
