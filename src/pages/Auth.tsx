@@ -46,7 +46,7 @@ const Auth = () => {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/account`,
+          redirectTo: `${window.location.origin}/`,
         },
       });
       if (error) {
@@ -85,7 +85,7 @@ const Auth = () => {
           }
         } else {
           toast.success('Welcome back!');
-          navigate('/account');
+          navigate('/');
         }
       }
     } catch (error) {
