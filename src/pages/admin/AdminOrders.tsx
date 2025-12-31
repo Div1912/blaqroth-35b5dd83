@@ -14,6 +14,14 @@ import { toast } from 'sonner';
 import { formatCurrency } from '@/lib/formatCurrency';
 import { format } from 'date-fns';
 
+interface OrderItemSummary {
+  order_id: string;
+  product_name: string;
+  quantity: number;
+  color: string | null;
+  size: string | null;
+}
+
 interface Order {
   id: string;
   order_number: string;
@@ -36,6 +44,7 @@ interface Order {
   shipping_state: string;
   shipping_postal_code: string;
   shipping_country: string;
+  items?: OrderItemSummary[];
 }
 
 interface OrderItem {
@@ -109,15 +118,44 @@ const AdminOrders = () => {
   }, []);
 
   const fetchOrders = async () => {
-    const { data, error } = await supabase
+    // Fetch orders with their items to show product summary
+    const { data: ordersData, error: ordersError } = await supabase
       .from('orders')
       .select('*')
       .order('created_at', { ascending: false });
 
-    if (error) {
+    if (ordersError) {
       toast.error('Failed to fetch orders');
+      setLoading(false);
+      return;
+    }
+
+    // Fetch all order items for these orders
+    const orderIds = (ordersData || []).map(o => o.id);
+    if (orderIds.length > 0) {
+      const { data: itemsData } = await supabase
+        .from('order_items')
+        .select('order_id, product_name, quantity, color, size')
+        .in('order_id', orderIds);
+
+      // Create a map of order_id to items
+      const itemsMap: Record<string, typeof itemsData> = {};
+      (itemsData || []).forEach(item => {
+        if (!itemsMap[item.order_id]) {
+          itemsMap[item.order_id] = [];
+        }
+        itemsMap[item.order_id].push(item);
+      });
+
+      // Attach items to orders
+      const ordersWithItems = (ordersData || []).map(order => ({
+        ...order,
+        items: itemsMap[order.id] || []
+      }));
+
+      setOrders(ordersWithItems);
     } else {
-      setOrders(data || []);
+      setOrders([]);
     }
     setLoading(false);
   };
@@ -322,6 +360,7 @@ const AdminOrders = () => {
               <TableRow>
                 <TableHead>Order #</TableHead>
                 <TableHead>Customer</TableHead>
+                <TableHead>Products</TableHead>
                 <TableHead>Total</TableHead>
                 <TableHead>Payment</TableHead>
                 <TableHead>Fulfillment</TableHead>
@@ -339,6 +378,28 @@ const AdminOrders = () => {
                       <p className="font-medium">{order.full_name}</p>
                       <p className="text-sm text-muted-foreground">{order.email}</p>
                     </div>
+                  </TableCell>
+                  <TableCell className="max-w-[200px]">
+                    {order.items && order.items.length > 0 ? (
+                      <div className="space-y-1">
+                        {order.items.slice(0, 2).map((item, idx) => (
+                          <div key={idx} className="text-sm">
+                            <span className="font-medium">{item.product_name}</span>
+                            <span className="text-muted-foreground"> x{item.quantity}</span>
+                            {(item.color || item.size) && (
+                              <span className="text-xs text-muted-foreground ml-1">
+                                ({[item.color, item.size].filter(Boolean).join(' / ')})
+                              </span>
+                            )}
+                          </div>
+                        ))}
+                        {order.items.length > 2 && (
+                          <p className="text-xs text-muted-foreground">+{order.items.length - 2} more</p>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-muted-foreground text-sm">-</span>
+                    )}
                   </TableCell>
                   <TableCell>{formatCurrency(order.total)}</TableCell>
                   <TableCell>
@@ -395,7 +456,7 @@ const AdminOrders = () => {
               ))}
               {orders.length === 0 && !loading && (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                     No orders yet
                   </TableCell>
                 </TableRow>
