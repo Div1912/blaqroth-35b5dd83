@@ -3,6 +3,7 @@ import { X, Plus, Minus, ShoppingBag } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { useCartStore } from '@/store/cartStore';
+import { formatPrice } from '@/lib/formatCurrency';
 
 export function CartDrawer() {
   const { items, isOpen, closeCart, updateQuantity, removeItem, getTotal } = useCartStore();
@@ -69,7 +70,7 @@ export function CartDrawer() {
                         {item.size} / {item.color}
                       </p>
                       <p className="text-foreground mt-1">
-                        ${item.product.price.toLocaleString()}
+                        {formatPrice(item.product.price)}
                       </p>
 
                       {/* Quantity */}
@@ -109,9 +110,9 @@ export function CartDrawer() {
             {/* Footer */}
             {items.length > 0 && (
               <div className="p-6 border-t border-white/5 space-y-4">
-                <div className="flex items-center justify-between text-lg">
+              <div className="flex items-center justify-between text-lg">
                   <span className="text-muted-foreground">Subtotal</span>
-                  <span className="font-display text-xl">${total.toLocaleString()}</span>
+                  <span className="font-display text-xl">{formatPrice(total)}</span>
                 </div>
                 <p className="text-muted-foreground text-sm">
                   Shipping and taxes calculated at checkout

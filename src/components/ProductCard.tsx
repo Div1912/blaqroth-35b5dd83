@@ -2,6 +2,7 @@ import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { Product } from '@/types';
 import { Button } from '@/components/ui/button';
+import { formatPrice } from '@/lib/formatCurrency';
 
 interface ProductCardProps {
   product: Product;
@@ -57,11 +58,11 @@ export function ProductCard({ product, index = 0 }: ProductCardProps) {
             
             <div className="flex items-center gap-3">
               <span className="text-foreground font-medium">
-                ${product.price.toLocaleString()}
+                {formatPrice(product.price)}
               </span>
               {product.originalPrice && (
                 <span className="text-muted-foreground line-through text-sm">
-                  ${product.originalPrice.toLocaleString()}
+                  {formatPrice(product.originalPrice)}
                 </span>
               )}
             </div>
