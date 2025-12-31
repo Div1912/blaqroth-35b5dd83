@@ -5,7 +5,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Eye } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Eye, Truck, Package, Clock, CheckCircle, XCircle, History } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatCurrency } from '@/lib/formatCurrency';
 import { format } from 'date-fns';
@@ -17,7 +21,12 @@ interface Order {
   email: string;
   phone: string;
   total: number;
+  subtotal: number;
   status: string;
+  fulfillment_status: string;
+  delivery_mode: string;
+  shipping_partner: string | null;
+  tracking_id: string | null;
   payment_status: string;
   payment_method: string;
   created_at: string;
@@ -36,17 +45,33 @@ interface OrderItem {
   price: number;
   subtotal: number;
   variant_details: string | null;
+  color: string | null;
+  size: string | null;
+  sku: string | null;
 }
 
-const orderStatuses = [
-  { value: 'pending', label: 'Pending', color: 'bg-gray-100 text-gray-700' },
-  { value: 'confirmed', label: 'Confirmed', color: 'bg-blue-100 text-blue-700' },
-  { value: 'processing', label: 'Processing', color: 'bg-yellow-100 text-yellow-700' },
-  { value: 'packed', label: 'Packed', color: 'bg-purple-100 text-purple-700' },
-  { value: 'shipped', label: 'Shipped', color: 'bg-indigo-100 text-indigo-700' },
-  { value: 'out_for_delivery', label: 'Out for Delivery', color: 'bg-orange-100 text-orange-700' },
-  { value: 'delivered', label: 'Delivered', color: 'bg-green-100 text-green-700' },
-  { value: 'cancelled', label: 'Cancelled', color: 'bg-red-100 text-red-700' },
+interface StatusHistory {
+  id: string;
+  old_status: string | null;
+  new_status: string | null;
+  old_fulfillment_status: string | null;
+  new_fulfillment_status: string | null;
+  created_at: string;
+}
+
+const fulfillmentStatuses = [
+  { value: 'pending', label: 'Pending', icon: Clock, color: 'bg-gray-100 text-gray-700' },
+  { value: 'packed', label: 'Packed', icon: Package, color: 'bg-purple-100 text-purple-700' },
+  { value: 'shipped', label: 'Shipped', icon: Truck, color: 'bg-blue-100 text-blue-700' },
+  { value: 'delivered', label: 'Delivered', icon: CheckCircle, color: 'bg-green-100 text-green-700' },
+  { value: 'cancelled', label: 'Cancelled', icon: XCircle, color: 'bg-red-100 text-red-700' },
+];
+
+const paymentStatuses = [
+  { value: 'pending', label: 'Pending', color: 'bg-yellow-100 text-yellow-700' },
+  { value: 'paid', label: 'Paid', color: 'bg-green-100 text-green-700' },
+  { value: 'failed', label: 'Failed', color: 'bg-red-100 text-red-700' },
+  { value: 'refunded', label: 'Refunded', color: 'bg-gray-100 text-gray-700' },
 ];
 
 const AdminOrders = () => {
@@ -54,7 +79,14 @@ const AdminOrders = () => {
   const [loading, setLoading] = useState(true);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
+  const [statusHistory, setStatusHistory] = useState<StatusHistory[]>([]);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState('details');
+  
+  // Delivery form
+  const [deliveryMode, setDeliveryMode] = useState<'self' | 'courier'>('self');
+  const [shippingPartner, setShippingPartner] = useState('');
+  const [trackingId, setTrackingId] = useState('');
 
   useEffect(() => {
     fetchOrders();
@@ -90,56 +122,197 @@ const AdminOrders = () => {
     setLoading(false);
   };
 
-  const handleStatusChange = async (orderId: string, newStatus: string) => {
+  const handleFulfillmentChange = async (orderId: string, newStatus: string) => {
+    const order = orders.find(o => o.id === orderId);
+    if (!order) return;
+
+    // Validation for courier delivery
+    if (newStatus === 'shipped' && order.delivery_mode === 'courier') {
+      if (!order.tracking_id || !order.shipping_partner) {
+        toast.error('Please set courier partner and tracking ID before marking as shipped');
+        return;
+      }
+    }
+
+    // Skip shipped status for self delivery
+    if (newStatus === 'shipped' && order.delivery_mode === 'self') {
+      toast.error('Self delivery orders cannot be marked as shipped. Use "Delivered" instead.');
+      return;
+    }
+
     const { error } = await supabase
       .from('orders')
-      .update({ status: newStatus, updated_at: new Date().toISOString() })
+      .update({ 
+        fulfillment_status: newStatus, 
+        updated_at: new Date().toISOString() 
+      })
       .eq('id', orderId);
 
     if (error) {
-      toast.error('Failed to update order status');
+      toast.error('Failed to update fulfillment status');
     } else {
-      toast.success(`Order status updated to ${newStatus}`);
+      toast.success(`Order marked as ${newStatus}`);
       
-      // Create notification for the customer
-      const order = orders.find(o => o.id === orderId);
-      if (order) {
-        const { data: customerData } = await supabase
-          .from('customers')
-          .select('id')
-          .eq('email', order.email)
-          .maybeSingle();
+      // Create notification for customer
+      const { data: customerData } = await supabase
+        .from('customers')
+        .select('id')
+        .eq('email', order.email)
+        .maybeSingle();
 
-        if (customerData) {
-          await supabase.from('notifications').insert({
-            customer_id: customerData.id,
-            title: 'Order Status Updated',
-            message: `Your order ${order.order_number} is now ${newStatus}`,
-            type: 'order',
-          });
+      if (customerData) {
+        let message = `Your order ${order.order_number} is now ${newStatus}`;
+        if (newStatus === 'shipped' && order.tracking_id) {
+          message += `. Track with: ${order.shipping_partner} - ${order.tracking_id}`;
         }
+        
+        await supabase.from('notifications').insert({
+          customer_id: customerData.id,
+          title: 'Order Update',
+          message,
+          type: 'order',
+        });
       }
+    }
+  };
+
+  const handlePaymentStatusChange = async (orderId: string, newStatus: string) => {
+    const { error } = await supabase
+      .from('orders')
+      .update({ 
+        payment_status: newStatus, 
+        updated_at: new Date().toISOString() 
+      })
+      .eq('id', orderId);
+
+    if (error) {
+      toast.error('Failed to update payment status');
+    } else {
+      toast.success(`Payment status updated to ${newStatus}`);
+    }
+  };
+
+  const handleUpdateDeliveryInfo = async () => {
+    if (!selectedOrder) return;
+
+    const updateData: any = {
+      delivery_mode: deliveryMode,
+      updated_at: new Date().toISOString(),
+    };
+
+    if (deliveryMode === 'courier') {
+      if (!shippingPartner || !trackingId) {
+        toast.error('Please enter courier partner and tracking ID');
+        return;
+      }
+      updateData.shipping_partner = shippingPartner;
+      updateData.tracking_id = trackingId;
+    } else {
+      updateData.shipping_partner = null;
+      updateData.tracking_id = null;
+    }
+
+    const { error } = await supabase
+      .from('orders')
+      .update(updateData)
+      .eq('id', selectedOrder.id);
+
+    if (error) {
+      toast.error('Failed to update delivery info');
+    } else {
+      toast.success('Delivery information updated');
+      setSelectedOrder({ ...selectedOrder, ...updateData });
+      fetchOrders();
     }
   };
 
   const viewOrderDetails = async (order: Order) => {
     setSelectedOrder(order);
+    setDeliveryMode((order.delivery_mode as 'self' | 'courier') || 'self');
+    setShippingPartner(order.shipping_partner || '');
+    setTrackingId(order.tracking_id || '');
     
-    const { data } = await supabase
-      .from('order_items')
-      .select('*')
-      .eq('order_id', order.id);
+    const [itemsResult, historyResult] = await Promise.all([
+      supabase.from('order_items').select('*').eq('order_id', order.id),
+      supabase.from('order_status_history').select('*').eq('order_id', order.id).order('created_at', { ascending: false }),
+    ]);
     
-    setOrderItems(data || []);
+    setOrderItems(itemsResult.data || []);
+    setStatusHistory(historyResult.data || []);
+    setActiveTab('details');
     setDetailsOpen(true);
   };
 
-  const getStatusColor = (status: string) => {
-    return orderStatuses.find(s => s.value === status)?.color || 'bg-gray-100 text-gray-700';
+  const getFulfillmentColor = (status: string) => {
+    return fulfillmentStatuses.find(s => s.value === status)?.color || 'bg-gray-100 text-gray-700';
   };
+
+  const getPaymentColor = (status: string) => {
+    return paymentStatuses.find(s => s.value === status)?.color || 'bg-gray-100 text-gray-700';
+  };
+
+  const getAvailableFulfillmentStatuses = (order: Order) => {
+    if (order.delivery_mode === 'self') {
+      return fulfillmentStatuses.filter(s => s.value !== 'shipped');
+    }
+    return fulfillmentStatuses;
+  };
+
+  // Stats
+  const pendingOrders = orders.filter(o => o.fulfillment_status === 'pending').length;
+  const packedOrders = orders.filter(o => o.fulfillment_status === 'packed').length;
+  const shippedOrders = orders.filter(o => o.fulfillment_status === 'shipped').length;
 
   return (
     <div className="space-y-6">
+      {/* Quick Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Pending</p>
+                <p className="text-2xl font-bold">{pendingOrders}</p>
+              </div>
+              <Clock className="h-8 w-8 text-gray-400" />
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Packed</p>
+                <p className="text-2xl font-bold">{packedOrders}</p>
+              </div>
+              <Package className="h-8 w-8 text-purple-400" />
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Shipped</p>
+                <p className="text-2xl font-bold">{shippedOrders}</p>
+              </div>
+              <Truck className="h-8 w-8 text-blue-400" />
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Total Orders</p>
+                <p className="text-2xl font-bold">{orders.length}</p>
+              </div>
+              <CheckCircle className="h-8 w-8 text-green-400" />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
       <h1 className="text-3xl font-bold text-foreground">Orders</h1>
 
       <Card>
@@ -151,7 +324,8 @@ const AdminOrders = () => {
                 <TableHead>Customer</TableHead>
                 <TableHead>Total</TableHead>
                 <TableHead>Payment</TableHead>
-                <TableHead>Status</TableHead>
+                <TableHead>Fulfillment</TableHead>
+                <TableHead>Delivery</TableHead>
                 <TableHead>Date</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -168,28 +342,46 @@ const AdminOrders = () => {
                   </TableCell>
                   <TableCell>{formatCurrency(order.total)}</TableCell>
                   <TableCell>
-                    <span className={`px-2 py-1 rounded-full text-xs ${
-                      order.payment_status === 'paid' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
-                    }`}>
-                      {order.payment_status}
-                    </span>
-                  </TableCell>
-                  <TableCell>
                     <Select
-                      value={order.status}
-                      onValueChange={(value) => handleStatusChange(order.id, value)}
+                      value={order.payment_status}
+                      onValueChange={(value) => handlePaymentStatusChange(order.id, value)}
                     >
-                      <SelectTrigger className={`w-40 ${getStatusColor(order.status)}`}>
+                      <SelectTrigger className={`w-28 ${getPaymentColor(order.payment_status)}`}>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {orderStatuses.map((status) => (
+                        {paymentStatuses.map((status) => (
                           <SelectItem key={status.value} value={status.value}>
                             {status.label}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
+                  </TableCell>
+                  <TableCell>
+                    <Select
+                      value={order.fulfillment_status || 'pending'}
+                      onValueChange={(value) => handleFulfillmentChange(order.id, value)}
+                    >
+                      <SelectTrigger className={`w-32 ${getFulfillmentColor(order.fulfillment_status || 'pending')}`}>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {getAvailableFulfillmentStatuses(order).map((status) => (
+                          <SelectItem key={status.value} value={status.value}>
+                            {status.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={order.delivery_mode === 'courier' ? 'default' : 'secondary'}>
+                      {order.delivery_mode === 'courier' ? 'Courier' : 'Self'}
+                    </Badge>
+                    {order.tracking_id && (
+                      <p className="text-xs text-muted-foreground mt-1">{order.tracking_id}</p>
+                    )}
                   </TableCell>
                   <TableCell>
                     {format(new Date(order.created_at), 'MMM dd, yyyy')}
@@ -203,7 +395,7 @@ const AdminOrders = () => {
               ))}
               {orders.length === 0 && !loading && (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                     No orders yet
                   </TableCell>
                 </TableRow>
@@ -215,72 +407,179 @@ const AdminOrders = () => {
 
       {/* Order Details Dialog */}
       <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Order Details - {selectedOrder?.order_number}</DialogTitle>
           </DialogHeader>
+          
           {selectedOrder && (
-            <div className="space-y-6">
-              {/* Customer Info */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <h3 className="font-semibold mb-2">Customer Information</h3>
-                  <p>{selectedOrder.full_name}</p>
-                  <p className="text-muted-foreground">{selectedOrder.email}</p>
-                  <p className="text-muted-foreground">{selectedOrder.phone}</p>
-                </div>
-                <div>
-                  <h3 className="font-semibold mb-2">Shipping Address</h3>
-                  <p>{selectedOrder.shipping_address_line1}</p>
-                  {selectedOrder.shipping_address_line2 && <p>{selectedOrder.shipping_address_line2}</p>}
-                  <p>{selectedOrder.shipping_city}, {selectedOrder.shipping_state}</p>
-                  <p>{selectedOrder.shipping_postal_code}, {selectedOrder.shipping_country}</p>
-                </div>
-              </div>
+            <Tabs value={activeTab} onValueChange={setActiveTab}>
+              <TabsList className="grid w-full grid-cols-3">
+                <TabsTrigger value="details">Details</TabsTrigger>
+                <TabsTrigger value="delivery">Delivery</TabsTrigger>
+                <TabsTrigger value="history">History</TabsTrigger>
+              </TabsList>
 
-              {/* Order Items */}
-              <div>
-                <h3 className="font-semibold mb-2">Order Items</h3>
-                <div className="border rounded-lg overflow-hidden">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Product</TableHead>
-                        <TableHead>Variant</TableHead>
-                        <TableHead className="text-right">Qty</TableHead>
-                        <TableHead className="text-right">Price</TableHead>
-                        <TableHead className="text-right">Subtotal</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {orderItems.map((item) => (
-                        <TableRow key={item.id}>
-                          <TableCell>{item.product_name}</TableCell>
-                          <TableCell>{item.variant_details || '-'}</TableCell>
-                          <TableCell className="text-right">{item.quantity}</TableCell>
-                          <TableCell className="text-right">{formatCurrency(item.price)}</TableCell>
-                          <TableCell className="text-right">{formatCurrency(item.subtotal)}</TableCell>
+              <TabsContent value="details" className="space-y-6">
+                {/* Customer Info */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <h3 className="font-semibold mb-2">Customer Information</h3>
+                    <p>{selectedOrder.full_name}</p>
+                    <p className="text-muted-foreground">{selectedOrder.email}</p>
+                    <p className="text-muted-foreground">{selectedOrder.phone}</p>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold mb-2">Shipping Address</h3>
+                    <p>{selectedOrder.shipping_address_line1}</p>
+                    {selectedOrder.shipping_address_line2 && <p>{selectedOrder.shipping_address_line2}</p>}
+                    <p>{selectedOrder.shipping_city}, {selectedOrder.shipping_state}</p>
+                    <p>{selectedOrder.shipping_postal_code}, {selectedOrder.shipping_country}</p>
+                  </div>
+                </div>
+
+                {/* Order Items */}
+                <div>
+                  <h3 className="font-semibold mb-2">Order Items</h3>
+                  <div className="border rounded-lg overflow-hidden">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Product</TableHead>
+                          <TableHead>Variant</TableHead>
+                          <TableHead className="text-right">Qty</TableHead>
+                          <TableHead className="text-right">Price</TableHead>
+                          <TableHead className="text-right">Subtotal</TableHead>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                      </TableHeader>
+                      <TableBody>
+                        {orderItems.map((item) => (
+                          <TableRow key={item.id}>
+                            <TableCell>{item.product_name}</TableCell>
+                            <TableCell>
+                              {item.color && <span>{item.color}</span>}
+                              {item.size && <span> / {item.size}</span>}
+                              {!item.color && !item.size && (item.variant_details || '-')}
+                            </TableCell>
+                            <TableCell className="text-right">{item.quantity}</TableCell>
+                            <TableCell className="text-right">{formatCurrency(item.price)}</TableCell>
+                            <TableCell className="text-right">{formatCurrency(item.subtotal)}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
                 </div>
-              </div>
 
-              {/* Order Summary */}
-              <div className="flex justify-end">
-                <div className="w-64 space-y-2">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Payment Method</span>
-                    <span className="font-medium uppercase">{selectedOrder.payment_method}</span>
-                  </div>
-                  <div className="flex justify-between text-lg font-bold">
-                    <span>Total</span>
-                    <span>{formatCurrency(selectedOrder.total)}</span>
+                {/* Order Summary */}
+                <div className="flex justify-end">
+                  <div className="w-64 space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Subtotal</span>
+                      <span>{formatCurrency(selectedOrder.subtotal)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Payment Method</span>
+                      <span className="uppercase">{selectedOrder.payment_method}</span>
+                    </div>
+                    <div className="flex justify-between text-lg font-bold">
+                      <span>Total</span>
+                      <span>{formatCurrency(selectedOrder.total)}</span>
+                    </div>
                   </div>
                 </div>
-              </div>
-            </div>
+              </TabsContent>
+
+              <TabsContent value="delivery" className="space-y-6">
+                <div className="space-y-4">
+                  <div>
+                    <Label>Delivery Mode</Label>
+                    <Select value={deliveryMode} onValueChange={(v: 'self' | 'courier') => setDeliveryMode(v)}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="self">Self Delivery (Blaqroth)</SelectItem>
+                        <SelectItem value="courier">Courier Partner</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {deliveryMode === 'courier' && (
+                    <>
+                      <div>
+                        <Label>Courier Partner</Label>
+                        <Input
+                          placeholder="e.g., Delhivery, BlueDart"
+                          value={shippingPartner}
+                          onChange={(e) => setShippingPartner(e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <Label>Tracking ID / AWB Number</Label>
+                        <Input
+                          placeholder="Enter tracking number"
+                          value={trackingId}
+                          onChange={(e) => setTrackingId(e.target.value)}
+                        />
+                      </div>
+                    </>
+                  )}
+
+                  {deliveryMode === 'self' && (
+                    <div className="bg-muted/50 rounded-lg p-4">
+                      <p className="text-sm text-muted-foreground">
+                        Self delivery orders are delivered by Blaqroth team. No tracking ID required.
+                      </p>
+                    </div>
+                  )}
+
+                  <Button onClick={handleUpdateDeliveryInfo} className="w-full">
+                    Update Delivery Information
+                  </Button>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="history" className="space-y-4">
+                <h3 className="font-semibold flex items-center gap-2">
+                  <History className="h-4 w-4" />
+                  Status History
+                </h3>
+                {statusHistory.length === 0 ? (
+                  <p className="text-muted-foreground text-center py-8">No status changes recorded</p>
+                ) : (
+                  <div className="space-y-3">
+                    {statusHistory.map((history) => (
+                      <div key={history.id} className="flex items-start gap-3 p-3 bg-muted/30 rounded-lg">
+                        <div className="w-2 h-2 mt-2 rounded-full bg-primary" />
+                        <div className="flex-1">
+                          <p className="text-sm">
+                            {history.old_fulfillment_status !== history.new_fulfillment_status && (
+                              <>
+                                Fulfillment: <span className="text-muted-foreground">{history.old_fulfillment_status || 'none'}</span>
+                                {' → '}
+                                <span className="font-medium">{history.new_fulfillment_status}</span>
+                              </>
+                            )}
+                            {history.old_status !== history.new_status && (
+                              <>
+                                {history.old_fulfillment_status !== history.new_fulfillment_status && ' | '}
+                                Status: <span className="text-muted-foreground">{history.old_status || 'none'}</span>
+                                {' → '}
+                                <span className="font-medium">{history.new_status}</span>
+                              </>
+                            )}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {format(new Date(history.created_at), 'MMM dd, yyyy HH:mm')}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </TabsContent>
+            </Tabs>
           )}
         </DialogContent>
       </Dialog>
