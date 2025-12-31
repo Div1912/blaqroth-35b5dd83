@@ -31,33 +31,55 @@ const ProductDetail = () => {
   
   const isInWishlist = product ? wishlistItems.includes(product.id) : false;
 
+
+  const hasColorOptions = useMemo(() => {
+    return !!product?.product_variants?.some((v) => !!v.color);
+  }, [product]);
+
+  const hasSizeOptions = useMemo(() => {
+    return !!product?.product_variants?.some((v) => !!v.size);
+  }, [product]);
+
   // Get unique colors and sizes from variants
   const colors = useMemo(() => {
     if (!product?.product_variants) return [];
-    const uniqueColors = [...new Set(product.product_variants.map(v => v.color).filter(Boolean))] as string[];
-    return uniqueColors;
-  }, [product]);
+    if (!hasColorOptions) return ['Default'];
+    return [...new Set(product.product_variants.map((v) => v.color).filter(Boolean))] as string[];
+  }, [product, hasColorOptions]);
 
   const sizes = useMemo(() => {
     if (!product?.product_variants) return [];
-    const uniqueSizes = [...new Set(product.product_variants.map(v => v.size).filter(Boolean))] as string[];
-    return uniqueSizes;
-  }, [product]);
+    if (!hasSizeOptions) return ['One Size'];
+    return [...new Set(product.product_variants.map((v) => v.size).filter(Boolean))] as string[];
+  }, [product, hasSizeOptions]);
 
   // Get current variant based on selection
   const currentVariant = useMemo(() => {
-    if (!product?.product_variants || !selectedColor || !selectedSize) return null;
-    return product.product_variants.find(v => v.color === selectedColor && v.size === selectedSize);
-  }, [product, selectedColor, selectedSize]);
+    if (!product?.product_variants) return null;
+
+    return (
+      product.product_variants.find((v) => {
+        const colorOk = hasColorOptions ? v.color === selectedColor : !v.color;
+        const sizeOk = hasSizeOptions ? v.size === selectedSize : !v.size;
+        return colorOk && sizeOk;
+      }) || null
+    );
+  }, [product, selectedColor, selectedSize, hasColorOptions, hasSizeOptions]);
 
   // Get available stock for current variant
   const availableStock = currentVariant?.stock_quantity || 0;
 
-  // Check if size is available for selected color
+  // Check if size is available for selected color (or size-only products)
   const isSizeAvailable = (size: string) => {
-    if (!product?.product_variants || !selectedColor) return false;
-    const variant = product.product_variants.find(v => v.color === selectedColor && v.size === size);
-    return variant && (variant.stock_quantity || 0) > 0;
+    if (!product?.product_variants) return false;
+
+    const variant = product.product_variants.find((v) => {
+      const colorOk = hasColorOptions ? v.color === selectedColor : !v.color;
+      const sizeOk = hasSizeOptions ? v.size === size : !v.size;
+      return colorOk && sizeOk;
+    });
+
+    return !!variant && (variant.stock_quantity || 0) > 0;
   };
 
   // Get images - sorted by display_order
@@ -91,18 +113,20 @@ const ProductDetail = () => {
 
   // Set default selections when product loads
   useEffect(() => {
-    if (product && colors.length > 0) {
+    if (!product || colors.length === 0) return;
+    if (!selectedColor) {
       setSelectedColor(colors[0]);
     }
-  }, [product, colors]);
+  }, [product, colors, selectedColor]);
 
   useEffect(() => {
-    if (product && sizes.length > 0 && selectedColor) {
-      // Find first available size for this color
-      const availableSize = sizes.find(size => isSizeAvailable(size));
-      setSelectedSize(availableSize || sizes[0]);
-    }
-  }, [selectedColor, sizes]);
+    if (!product || sizes.length === 0) return;
+    if (hasColorOptions && !selectedColor) return;
+
+    // Find first available size for this selection
+    const availableSize = sizes.find((s) => isSizeAvailable(s));
+    setSelectedSize(availableSize || sizes[0]);
+  }, [product, selectedColor, sizes, hasColorOptions]);
 
   const nextImage = () => {
     setCurrentImageIndex((prev) => (prev + 1) % images.length);
@@ -329,7 +353,7 @@ const ProductDetail = () => {
               </p>
 
               {/* Color Selection */}
-              {colors.length > 0 && (
+              {hasColorOptions && colors.length > 0 && (
                 <div className="mb-6">
                   <label className="text-sm tracking-widest uppercase mb-3 block">
                     Color: <span className="text-primary">{selectedColor}</span>
@@ -353,7 +377,7 @@ const ProductDetail = () => {
               )}
 
               {/* Size Selection */}
-              {sizes.length > 0 && (
+              {hasSizeOptions && sizes.length > 0 && (
                 <div className="mb-8">
                   <label className="text-sm tracking-widest uppercase mb-3 block">
                     Size
