@@ -261,39 +261,168 @@ export type Database = {
           },
         ]
       }
-      order_items: {
+      offer_products: {
         Row: {
           created_at: string | null
           id: string
+          offer_id: string
+          product_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          offer_id: string
+          product_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          offer_id?: string
+          product_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "offer_products_offer_id_fkey"
+            columns: ["offer_id"]
+            isOneToOne: false
+            referencedRelation: "offers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "offer_products_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      offer_variants: {
+        Row: {
+          created_at: string | null
+          id: string
+          offer_id: string
+          variant_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          offer_id: string
+          variant_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          offer_id?: string
+          variant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "offer_variants_offer_id_fkey"
+            columns: ["offer_id"]
+            isOneToOne: false
+            referencedRelation: "offers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "offer_variants_variant_id_fkey"
+            columns: ["variant_id"]
+            isOneToOne: false
+            referencedRelation: "product_variants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      offers: {
+        Row: {
+          applies_to: string | null
+          created_at: string | null
+          description: string | null
+          discount_type: string
+          discount_value: number
+          end_date: string
+          id: string
+          is_active: boolean | null
+          start_date: string
+          title: string
+          updated_at: string | null
+        }
+        Insert: {
+          applies_to?: string | null
+          created_at?: string | null
+          description?: string | null
+          discount_type: string
+          discount_value: number
+          end_date: string
+          id?: string
+          is_active?: boolean | null
+          start_date: string
+          title: string
+          updated_at?: string | null
+        }
+        Update: {
+          applies_to?: string | null
+          created_at?: string | null
+          description?: string | null
+          discount_type?: string
+          discount_value?: number
+          end_date?: string
+          id?: string
+          is_active?: boolean | null
+          start_date?: string
+          title?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      order_items: {
+        Row: {
+          color: string | null
+          created_at: string | null
+          discount_amount: number | null
+          id: string
           order_id: string
+          original_price: number | null
           price: number
           product_id: string | null
           product_name: string
           quantity: number
+          size: string | null
+          sku: string | null
           subtotal: number
           variant_details: string | null
           variant_id: string | null
         }
         Insert: {
+          color?: string | null
           created_at?: string | null
+          discount_amount?: number | null
           id?: string
           order_id: string
+          original_price?: number | null
           price: number
           product_id?: string | null
           product_name: string
           quantity: number
+          size?: string | null
+          sku?: string | null
           subtotal: number
           variant_details?: string | null
           variant_id?: string | null
         }
         Update: {
+          color?: string | null
           created_at?: string | null
+          discount_amount?: number | null
           id?: string
           order_id?: string
+          original_price?: number | null
           price?: number
           product_id?: string | null
           product_name?: string
           quantity?: number
+          size?: string | null
+          sku?: string | null
           subtotal?: number
           variant_details?: string | null
           variant_id?: string | null
@@ -322,11 +451,57 @@ export type Database = {
           },
         ]
       }
+      order_status_history: {
+        Row: {
+          changed_by: string | null
+          created_at: string | null
+          id: string
+          new_fulfillment_status: string | null
+          new_status: string
+          notes: string | null
+          old_fulfillment_status: string | null
+          old_status: string | null
+          order_id: string
+        }
+        Insert: {
+          changed_by?: string | null
+          created_at?: string | null
+          id?: string
+          new_fulfillment_status?: string | null
+          new_status: string
+          notes?: string | null
+          old_fulfillment_status?: string | null
+          old_status?: string | null
+          order_id: string
+        }
+        Update: {
+          changed_by?: string | null
+          created_at?: string | null
+          id?: string
+          new_fulfillment_status?: string | null
+          new_status?: string
+          notes?: string | null
+          old_fulfillment_status?: string | null
+          old_status?: string | null
+          order_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_status_history_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       orders: {
         Row: {
           created_at: string | null
           customer_id: string | null
+          delivery_mode: string | null
           email: string
+          fulfillment_status: string | null
           full_name: string
           id: string
           notes: string | null
@@ -340,18 +515,22 @@ export type Database = {
           shipping_city: string
           shipping_cost: number | null
           shipping_country: string | null
+          shipping_partner: string | null
           shipping_postal_code: string
           shipping_state: string
           status: string | null
           subtotal: number
           tax: number | null
           total: number
+          tracking_id: string | null
           updated_at: string | null
         }
         Insert: {
           created_at?: string | null
           customer_id?: string | null
+          delivery_mode?: string | null
           email: string
+          fulfillment_status?: string | null
           full_name: string
           id?: string
           notes?: string | null
@@ -365,18 +544,22 @@ export type Database = {
           shipping_city: string
           shipping_cost?: number | null
           shipping_country?: string | null
+          shipping_partner?: string | null
           shipping_postal_code: string
           shipping_state: string
           status?: string | null
           subtotal: number
           tax?: number | null
           total: number
+          tracking_id?: string | null
           updated_at?: string | null
         }
         Update: {
           created_at?: string | null
           customer_id?: string | null
+          delivery_mode?: string | null
           email?: string
+          fulfillment_status?: string | null
           full_name?: string
           id?: string
           notes?: string | null
@@ -390,12 +573,14 @@ export type Database = {
           shipping_city?: string
           shipping_cost?: number | null
           shipping_country?: string | null
+          shipping_partner?: string | null
           shipping_postal_code?: string
           shipping_state?: string
           status?: string | null
           subtotal?: number
           tax?: number | null
           total?: number
+          tracking_id?: string | null
           updated_at?: string | null
         }
         Relationships: [
