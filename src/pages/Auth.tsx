@@ -2,25 +2,28 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Mail, Lock, User, Eye, EyeOff, Phone } from 'lucide-react';
-import { AnimatedBackground } from '@/components/AnimatedBackground';
+import { AuthBackground } from '@/components/AuthBackground';
 import { Header } from '@/components/Header';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
 import { countryCodes } from '@/lib/countryCodes';
 import { supabase } from '@/integrations/supabase/client';
+import { useSmoothScroll } from '@/hooks/useSmoothScroll';
 
 const Auth = () => {
   const navigate = useNavigate();
   const { user, signIn, signUp, loading: authLoading } = useAuth();
   const [searchParams] = useSearchParams();
-  const [scrollProgress, setScrollProgress] = useState(0);
   const [mode, setMode] = useState<'signin' | 'signup'>(
     searchParams.get('mode') === 'signup' ? 'signup' : 'signin'
   );
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+
+  // Enable smooth scrolling
+  useSmoothScroll();
 
   const [formData, setFormData] = useState({
     email: '',
@@ -29,17 +32,6 @@ const Auth = () => {
     phone: '',
     countryCode: '+91',
   });
-
-  useEffect(() => {
-    const handleScroll = () => {
-      const scrollHeight = document.documentElement.scrollHeight - window.innerHeight;
-      const progress = Math.min(window.scrollY / scrollHeight, 1);
-      setScrollProgress(progress);
-    };
-
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
 
   // Redirect if already logged in
   useEffect(() => {
@@ -110,34 +102,49 @@ const Auth = () => {
   if (authLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <p className="text-muted-foreground">Loading...</p>
+        <motion.div
+          animate={{ rotate: 360 }}
+          transition={{ duration: 1.5, repeat: Infinity, ease: 'linear' }}
+          className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full"
+        />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background relative">
-      <AnimatedBackground scrollProgress={scrollProgress} />
+    <div className="min-h-screen bg-background relative overflow-hidden">
+      <AuthBackground />
       <Header />
 
-      <main className="pt-32 pb-20 min-h-screen flex items-center justify-center">
+      <main className="pt-32 pb-20 min-h-screen flex items-center justify-center relative z-10">
         <div className="container mx-auto px-6 md:px-12">
           <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8 }}
+            initial={{ opacity: 0, y: 30, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            transition={{ duration: 0.8, ease: [0.4, 0, 0.2, 1] }}
             className="max-w-md mx-auto"
           >
             {/* Back Link */}
-            <Link
-              to="/"
-              className="inline-flex items-center text-muted-foreground hover:text-foreground transition-colors mb-8"
+            <motion.div
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.2 }}
             >
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to Home
-            </Link>
+              <Link
+                to="/"
+                className="inline-flex items-center text-muted-foreground hover:text-foreground transition-colors mb-8 group"
+              >
+                <ArrowLeft className="h-4 w-4 mr-2 group-hover:-translate-x-1 transition-transform" />
+                Back to Home
+              </Link>
+            </motion.div>
 
-            <div className="glass-panel p-8 md:p-12">
+            <motion.div 
+              className="glass-panel p-8 md:p-12 backdrop-blur-xl border border-white/10 shadow-2xl"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3, duration: 0.6 }}
+            >
               <div className="text-center mb-8">
                 <h1 className="font-display text-3xl md:text-4xl tracking-wider mb-2">
                   {mode === 'signin' ? 'Welcome Back' : 'Create Account'}
@@ -310,7 +317,7 @@ const Auth = () => {
                   </button>
                 </p>
               </div>
-            </div>
+            </motion.div>
           </motion.div>
         </div>
       </main>
