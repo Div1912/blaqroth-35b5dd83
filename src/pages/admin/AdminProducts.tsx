@@ -364,7 +364,9 @@ const AdminProducts = () => {
       stock_quantity: '0',
       category_id: '',
     });
-    setVariants([]);
+    // Don't reset variants here - it clears the global variants list used for stock calculation
+    // Instead, refetch all variants to ensure we have the latest data
+    fetchAllVariants();
     setImages([]);
     setActiveTab('details');
   };
