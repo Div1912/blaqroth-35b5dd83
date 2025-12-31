@@ -9,9 +9,13 @@ import { FeaturedSection } from '@/components/sections/FeaturedSection';
 import { CollectionStorySection } from '@/components/sections/CollectionStorySection';
 import { TestimonialsSection } from '@/components/sections/TestimonialsSection';
 import { BrandEthosSection } from '@/components/sections/BrandEthosSection';
+import { useSmoothScroll } from '@/hooks/useSmoothScroll';
 
 const Index = () => {
   const [scrollProgress, setScrollProgress] = useState(0);
+  
+  // Enable buttery smooth scrolling
+  useSmoothScroll();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -26,8 +30,10 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-background relative">
-      {/* Persistent Animated Background */}
-      <AnimatedBackground scrollProgress={scrollProgress} />
+      {/* Persistent Animated Background - only shows after hero */}
+      <div className="fixed inset-0 -z-10 opacity-0 transition-opacity duration-1000" style={{ opacity: scrollProgress > 0.1 ? 1 : 0 }}>
+        <AnimatedBackground scrollProgress={scrollProgress} />
+      </div>
       
       {/* Header */}
       <Header />
