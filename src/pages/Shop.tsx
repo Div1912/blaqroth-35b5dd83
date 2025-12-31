@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { useSearchParams } from 'react-router-dom';
 import { Filter, X, Loader2 } from 'lucide-react';
 import { AnimatedBackground } from '@/components/AnimatedBackground';
+import { ShopHeroBackground } from '@/components/ShopHeroBackground';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { CartDrawer } from '@/components/CartDrawer';
@@ -10,6 +11,7 @@ import { DBProductCard } from '@/components/DBProductCard';
 import { Button } from '@/components/ui/button';
 import { BackButton } from '@/components/BackButton';
 import { useProducts, useCategories, useActiveOffers } from '@/hooks/useProducts';
+import { useSmoothScroll } from '@/hooks/useSmoothScroll';
 
 const Shop = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -20,6 +22,9 @@ const Shop = () => {
   );
   const [sortBy, setSortBy] = useState<'newest' | 'price-asc' | 'price-desc'>('newest');
   const [showFilters, setShowFilters] = useState(false);
+
+  // Enable smooth scrolling
+  useSmoothScroll();
 
   const { data: products, isLoading: productsLoading } = useProducts();
   const { data: categories } = useCategories();
@@ -80,20 +85,41 @@ const Shop = () => {
             <BackButton fallbackTo="/" />
           </motion.div>
 
-          {/* Page Header */}
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8 }}
-            className="text-center mb-16"
-          >
-            <span className="text-primary tracking-[0.4em] uppercase text-sm mb-4 block">
-              The Collection
-            </span>
-            <h1 className="font-display text-5xl md:text-6xl lg:text-7xl font-light tracking-wider">
-              Shop All
-            </h1>
-          </motion.div>
+          {/* Page Header with Parallax Background */}
+          <div className="relative mb-16">
+            <ShopHeroBackground />
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.8 }}
+              className="text-center py-12 relative z-10"
+            >
+              <motion.span 
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, delay: 0.2 }}
+                className="text-primary tracking-[0.4em] uppercase text-sm mb-4 block"
+              >
+                The Collection
+              </motion.span>
+              <motion.h1 
+                initial={{ opacity: 0, y: 30 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.8, delay: 0.3 }}
+                className="font-display text-5xl md:text-6xl lg:text-7xl font-light tracking-wider"
+              >
+                <span className="text-gold-gradient">Shop All</span>
+              </motion.h1>
+              
+              {/* Decorative elements */}
+              <motion.div
+                initial={{ scaleX: 0 }}
+                animate={{ scaleX: 1 }}
+                transition={{ duration: 1, delay: 0.5 }}
+                className="mt-6 h-px bg-gradient-to-r from-transparent via-primary/50 to-transparent mx-auto max-w-xs"
+              />
+            </motion.div>
+          </div>
 
           {/* Filters */}
           <motion.div
