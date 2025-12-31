@@ -275,7 +275,7 @@ const Auth = () => {
                       className="w-full bg-secondary/50 border border-white/10 rounded pl-10 pr-12 py-3 focus:outline-none focus:ring-1 focus:ring-primary"
                       placeholder="••••••••"
                       required
-                      minLength={6}
+                      minLength={8}
                     />
                     <button
                       type="button"
