@@ -1,15 +1,15 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useSearchParams } from 'react-router-dom';
-import { Filter, X } from 'lucide-react';
+import { Filter, X, Loader2 } from 'lucide-react';
 import { AnimatedBackground } from '@/components/AnimatedBackground';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { CartDrawer } from '@/components/CartDrawer';
-import { ProductCard } from '@/components/ProductCard';
-import { products, categories, collections } from '@/data/products';
+import { DBProductCard } from '@/components/DBProductCard';
 import { Button } from '@/components/ui/button';
 import { BackButton } from '@/components/BackButton';
+import { useProducts, useCategories, useActiveOffers } from '@/hooks/useProducts';
 
 const Shop = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -20,6 +20,10 @@ const Shop = () => {
   );
   const [sortBy, setSortBy] = useState<'newest' | 'price-asc' | 'price-desc'>('newest');
   const [showFilters, setShowFilters] = useState(false);
+
+  const { data: products, isLoading: productsLoading } = useProducts();
+  const { data: categories } = useCategories();
+  const { data: offers } = useActiveOffers();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -49,16 +53,14 @@ const Shop = () => {
     }
   };
 
-  const filteredProducts = products
-    .filter((p) => !selectedCategory || p.category === selectedCategory)
-    .filter((p) => !selectedCollection || p.collection === selectedCollection)
+  const filteredProducts = (products || [])
+    .filter((p) => !selectedCategory || p.category?.slug === selectedCategory)
     .sort((a, b) => {
       if (sortBy === 'price-asc') return a.price - b.price;
       if (sortBy === 'price-desc') return b.price - a.price;
-      return 0;
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     });
 
-  const currentCollection = collections.find(c => c.slug === selectedCollection);
   const activeFiltersCount = (selectedCategory ? 1 : 0) + (selectedCollection ? 1 : 0);
 
   return (
@@ -86,16 +88,11 @@ const Shop = () => {
             className="text-center mb-16"
           >
             <span className="text-primary tracking-[0.4em] uppercase text-sm mb-4 block">
-              {currentCollection ? currentCollection.name : 'The Collection'}
+              The Collection
             </span>
             <h1 className="font-display text-5xl md:text-6xl lg:text-7xl font-light tracking-wider">
-              {currentCollection ? currentCollection.name : 'Shop All'}
+              Shop All
             </h1>
-            {currentCollection && (
-              <p className="text-muted-foreground mt-4 max-w-xl mx-auto">
-                {currentCollection.description}
-              </p>
-            )}
           </motion.div>
 
           {/* Filters */}
@@ -137,30 +134,6 @@ const Shop = () => {
               <div className={`${showFilters ? 'block' : 'hidden'} md:block`}>
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                   <div className="space-y-4 md:space-y-0 md:flex md:flex-wrap md:gap-4">
-                    {/* Collections */}
-                    <div className="space-y-2">
-                      <label className="text-xs text-muted-foreground uppercase tracking-wider">Collection</label>
-                      <div className="flex flex-wrap gap-2">
-                        <Button
-                          variant={selectedCollection === null ? 'glass-gold' : 'glass'}
-                          size="sm"
-                          onClick={() => handleCollectionChange(null)}
-                        >
-                          All
-                        </Button>
-                        {collections.map((collection) => (
-                          <Button
-                            key={collection.id}
-                            variant={selectedCollection === collection.slug ? 'glass-gold' : 'glass'}
-                            size="sm"
-                            onClick={() => handleCollectionChange(collection.slug)}
-                          >
-                            {collection.name.replace(' COLLECTION', '')}
-                          </Button>
-                        ))}
-                      </div>
-                    </div>
-
                     {/* Categories */}
                     <div className="space-y-2">
                       <label className="text-xs text-muted-foreground uppercase tracking-wider">Category</label>
@@ -172,7 +145,7 @@ const Shop = () => {
                         >
                           All
                         </Button>
-                        {categories.map((category) => (
+                        {categories?.map((category) => (
                           <Button
                             key={category.id}
                             variant={selectedCategory === category.slug ? 'glass-gold' : 'glass'}
@@ -203,30 +176,17 @@ const Shop = () => {
               </div>
 
               {/* Active Filters */}
-              {(selectedCategory || selectedCollection) && (
+              {selectedCategory && (
                 <div className="flex flex-wrap items-center gap-2 pt-4 border-t border-white/10">
                   <span className="text-sm text-muted-foreground">Active filters:</span>
-                  {selectedCollection && (
-                    <span className="inline-flex items-center gap-1 px-3 py-1 bg-primary/20 text-primary text-sm rounded-full">
-                      {collections.find(c => c.slug === selectedCollection)?.name.replace(' COLLECTION', '')}
-                      <button onClick={() => handleCollectionChange(null)}>
-                        <X className="h-3 w-3" />
-                      </button>
-                    </span>
-                  )}
-                  {selectedCategory && (
-                    <span className="inline-flex items-center gap-1 px-3 py-1 bg-primary/20 text-primary text-sm rounded-full">
-                      {categories.find(c => c.slug === selectedCategory)?.name}
-                      <button onClick={() => setSelectedCategory(null)}>
-                        <X className="h-3 w-3" />
-                      </button>
-                    </span>
-                  )}
+                  <span className="inline-flex items-center gap-1 px-3 py-1 bg-primary/20 text-primary text-sm rounded-full">
+                    {categories?.find(c => c.slug === selectedCategory)?.name}
+                    <button onClick={() => setSelectedCategory(null)}>
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
                   <button
-                    onClick={() => {
-                      setSelectedCategory(null);
-                      handleCollectionChange(null);
-                    }}
+                    onClick={() => setSelectedCategory(null)}
                     className="text-sm text-muted-foreground hover:text-foreground transition-colors"
                   >
                     Clear all
@@ -242,27 +202,45 @@ const Shop = () => {
             animate={{ opacity: 1 }}
             className="mb-6 text-muted-foreground"
           >
-            {filteredProducts.length} {filteredProducts.length === 1 ? 'product' : 'products'}
+            {productsLoading ? (
+              <span className="flex items-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Loading products...
+              </span>
+            ) : (
+              <span>{filteredProducts.length} {filteredProducts.length === 1 ? 'product' : 'products'}</span>
+            )}
           </motion.div>
 
           {/* Products Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 md:gap-8">
-            {filteredProducts.map((product, index) => (
-              <ProductCard key={product.id} product={product} index={index} />
-            ))}
-          </div>
+          {productsLoading ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 md:gap-8">
+              {[...Array(8)].map((_, i) => (
+                <div key={i} className="glass-card animate-pulse">
+                  <div className="aspect-[3/4] bg-secondary/20" />
+                  <div className="p-4 space-y-3">
+                    <div className="h-4 bg-secondary/20 rounded w-3/4" />
+                    <div className="h-4 bg-secondary/20 rounded w-1/2" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 md:gap-8">
+              {filteredProducts.map((product, index) => (
+                <DBProductCard key={product.id} product={product} offers={offers || []} index={index} />
+              ))}
+            </div>
+          )}
 
-          {filteredProducts.length === 0 && (
+          {!productsLoading && filteredProducts.length === 0 && (
             <div className="text-center py-20">
               <p className="text-muted-foreground text-lg mb-4">
                 No products found with the selected filters.
               </p>
               <Button
                 variant="glass"
-                onClick={() => {
-                  setSelectedCategory(null);
-                  handleCollectionChange(null);
-                }}
+                onClick={() => setSelectedCategory(null)}
               >
                 Clear Filters
               </Button>

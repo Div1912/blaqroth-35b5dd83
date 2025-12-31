@@ -9,14 +9,21 @@ import { CartDrawer } from '@/components/CartDrawer';
 import { Button } from '@/components/ui/button';
 import { AddressManager } from '@/components/AddressManager';
 import { BackButton } from '@/components/BackButton';
+import { OrderTrackingTimeline } from '@/components/OrderTrackingTimeline';
 import { useAuth } from '@/hooks/useAuth';
 import { useWishlistStore } from '@/store/wishlistStore';
-import { products } from '@/data/products';
+import { useProducts } from '@/hooks/useProducts';
 import { formatPrice } from '@/lib/formatCurrency';
 import { countryCodes } from '@/lib/countryCodes';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
 interface CustomerProfile {
   full_name: string | null;
@@ -29,6 +36,10 @@ interface Order {
   id: string;
   order_number: string;
   status: string;
+  fulfillment_status: string;
+  delivery_mode: string;
+  shipping_partner: string | null;
+  tracking_id: string | null;
   total: number;
   created_at: string;
   payment_method: string;
@@ -40,6 +51,8 @@ interface OrderItem {
   quantity: number;
   price: number;
   variant_details: string | null;
+  color: string | null;
+  size: string | null;
 }
 
 const Account = () => {
@@ -62,12 +75,14 @@ const Account = () => {
   // Orders state
   const [orders, setOrders] = useState<Order[]>([]);
   const [ordersLoading, setOrdersLoading] = useState(false);
-  const [expandedOrder, setExpandedOrder] = useState<string | null>(null);
-  const [orderItems, setOrderItems] = useState<Record<string, OrderItem[]>>({});
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
+  const [orderDialogOpen, setOrderDialogOpen] = useState(false);
   
-  // Wishlist
+  // Wishlist - using DB products
   const { items: wishlistItems, removeItem: removeFromWishlist } = useWishlistStore();
-  const wishlistProducts = products.filter(p => wishlistItems.includes(p.id));
+  const { data: allProducts } = useProducts();
+  const wishlistProducts = (allProducts || []).filter(p => wishlistItems.includes(p.id));
 
   useEffect(() => {
     const handleScroll = () => {
@@ -88,6 +103,26 @@ const Account = () => {
     }
   }, [user]);
 
+  // Subscribe to real-time order updates
+  useEffect(() => {
+    if (!user) return;
+
+    const channel = supabase
+      .channel('user-orders')
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'orders' },
+        (payload) => {
+          setOrders(prev => prev.map(o => o.id === payload.new.id ? { ...o, ...payload.new } : o));
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user]);
+
   const fetchOrders = async () => {
     if (!user) return;
     setOrdersLoading(true);
@@ -96,22 +131,40 @@ const Account = () => {
       .select('*')
       .eq('customer_id', user.id)
       .order('created_at', { ascending: false });
-    setOrders(data || []);
+    setOrders((data || []) as Order[]);
     setOrdersLoading(false);
   };
 
-  const toggleOrderDetails = async (orderId: string) => {
-    if (expandedOrder === orderId) {
-      setExpandedOrder(null);
-      return;
-    }
-    setExpandedOrder(orderId);
-    if (!orderItems[orderId]) {
-      const { data } = await supabase
-        .from('order_items')
-        .select('*')
-        .eq('order_id', orderId);
-      setOrderItems(prev => ({ ...prev, [orderId]: data || [] }));
+  const viewOrderDetails = async (order: Order) => {
+    setSelectedOrder(order);
+    const { data } = await supabase
+      .from('order_items')
+      .select('*')
+      .eq('order_id', order.id);
+    setOrderItems((data || []) as OrderItem[]);
+    setOrderDialogOpen(true);
+  };
+
+  const handleCancelOrder = async () => {
+    if (!selectedOrder) return;
+    
+    if (!confirm('Are you sure you want to cancel this order?')) return;
+
+    const { error } = await supabase
+      .from('orders')
+      .update({ 
+        fulfillment_status: 'cancelled',
+        status: 'cancelled',
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', selectedOrder.id);
+
+    if (error) {
+      toast.error('Failed to cancel order');
+    } else {
+      toast.success('Order cancelled successfully');
+      setSelectedOrder({ ...selectedOrder, fulfillment_status: 'cancelled', status: 'cancelled' });
+      fetchOrders();
     }
   };
 
@@ -126,7 +179,6 @@ const Account = () => {
 
     if (error) {
       console.error('Failed to load profile:', error);
-      // Set defaults from auth user
       setProfile({
         full_name: user.user_metadata?.full_name || null,
         email: user.email || '',
@@ -160,9 +212,7 @@ const Account = () => {
 
       if (error) throw error;
 
-      setProfile({
-        ...editForm,
-      });
+      setProfile({ ...editForm });
       setIsEditing(false);
       toast.success('Profile updated successfully');
     } catch (error) {
@@ -177,6 +227,16 @@ const Account = () => {
     await signOut();
     toast.success('Signed out successfully');
     navigate('/');
+  };
+
+  const getFulfillmentBadgeColor = (status: string) => {
+    switch (status) {
+      case 'delivered': return 'bg-green-100 text-green-700';
+      case 'shipped': return 'bg-blue-100 text-blue-700';
+      case 'packed': return 'bg-purple-100 text-purple-700';
+      case 'cancelled': return 'bg-red-100 text-red-700';
+      default: return 'bg-gray-100 text-gray-700';
+    }
   };
 
   if (loading) {
@@ -239,7 +299,6 @@ const Account = () => {
 
       <main className="pt-32 pb-20">
         <div className="container mx-auto px-6 md:px-12">
-          {/* Back Button */}
           <motion.div
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
@@ -420,28 +479,31 @@ const Account = () => {
                       <span className="text-muted-foreground">{wishlistProducts.length} items</span>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      {wishlistProducts.map((product) => (
-                        <div key={product.id} className="glass-panel p-4 flex gap-4">
-                          <Link to={`/product/${product.id}`} className="w-20 h-24 bg-secondary/20 rounded overflow-hidden flex-shrink-0">
-                            <img src={product.images[0]} alt={product.name} className="w-full h-full object-cover" />
-                          </Link>
-                          <div className="flex-1 min-w-0">
-                            <Link to={`/product/${product.id}`} className="font-medium truncate block hover:text-primary transition-colors">
-                              {product.name}
+                      {wishlistProducts.map((product) => {
+                        const primaryImage = product.product_images?.find(img => img.is_primary) || product.product_images?.[0];
+                        return (
+                          <div key={product.id} className="glass-panel p-4 flex gap-4">
+                            <Link to={`/product/${product.slug}`} className="w-20 h-24 bg-secondary/20 rounded overflow-hidden flex-shrink-0">
+                              <img src={primaryImage?.url || '/placeholder.svg'} alt={product.name} className="w-full h-full object-cover" />
                             </Link>
-                            <p className="text-primary font-display mt-1">{formatPrice(product.price)}</p>
-                            <button
-                              onClick={() => {
-                                removeFromWishlist(product.id);
-                                toast.success('Removed from wishlist');
-                              }}
-                              className="text-sm text-muted-foreground hover:text-red-500 mt-2 transition-colors"
-                            >
-                              Remove
-                            </button>
+                            <div className="flex-1 min-w-0">
+                              <Link to={`/product/${product.slug}`} className="font-medium truncate block hover:text-primary transition-colors">
+                                {product.name}
+                              </Link>
+                              <p className="text-primary font-display mt-1">{formatPrice(product.price)}</p>
+                              <button
+                                onClick={() => {
+                                  removeFromWishlist(product.id);
+                                  toast.success('Removed from wishlist');
+                                }}
+                                className="text-sm text-muted-foreground hover:text-red-500 mt-2 transition-colors"
+                              >
+                                Remove
+                              </button>
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 )}
@@ -463,7 +525,10 @@ const Account = () => {
                   <div className="space-y-4">
                     {orders.map((order) => (
                       <div key={order.id} className="glass-panel overflow-hidden">
-                        <button onClick={() => toggleOrderDetails(order.id)} className="w-full p-4 flex items-center justify-between hover:bg-white/5 transition-colors">
+                        <button 
+                          onClick={() => viewOrderDetails(order)} 
+                          className="w-full p-4 flex items-center justify-between hover:bg-white/5 transition-colors"
+                        >
                           <div className="flex items-center gap-4">
                             <Package className="h-5 w-5 text-primary" />
                             <div className="text-left">
@@ -472,26 +537,13 @@ const Account = () => {
                             </div>
                           </div>
                           <div className="flex items-center gap-4">
-                            <span className={`px-2 py-1 rounded-full text-xs ${
-                              order.status === 'delivered' ? 'bg-green-100 text-green-700' :
-                              order.status === 'shipped' ? 'bg-blue-100 text-blue-700' :
-                              order.status === 'processing' ? 'bg-yellow-100 text-yellow-700' :
-                              'bg-gray-100 text-gray-700'
-                            }`}>{order.status}</span>
+                            <span className={`px-2 py-1 rounded-full text-xs ${getFulfillmentBadgeColor(order.fulfillment_status || 'pending')}`}>
+                              {order.fulfillment_status || 'pending'}
+                            </span>
                             <span className="font-medium">{formatPrice(order.total)}</span>
-                            {expandedOrder === order.id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                            <ChevronDown className="h-4 w-4" />
                           </div>
                         </button>
-                        {expandedOrder === order.id && orderItems[order.id] && (
-                          <div className="border-t border-white/10 p-4 space-y-2">
-                            {orderItems[order.id].map((item) => (
-                              <div key={item.id} className="flex justify-between text-sm">
-                                <span>{item.product_name} {item.variant_details && `(${item.variant_details})`} × {item.quantity}</span>
-                                <span>{formatPrice(item.price * item.quantity)}</span>
-                              </div>
-                            ))}
-                          </div>
-                        )}
                       </div>
                     ))}
                   </div>
@@ -501,6 +553,52 @@ const Account = () => {
           </motion.div>
         </div>
       </main>
+
+      {/* Order Details Dialog */}
+      <Dialog open={orderDialogOpen} onOpenChange={setOrderDialogOpen}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Order {selectedOrder?.order_number}</DialogTitle>
+          </DialogHeader>
+          
+          {selectedOrder && (
+            <div className="space-y-6">
+              {/* Tracking Timeline */}
+              <OrderTrackingTimeline 
+                order={selectedOrder} 
+                onCancel={handleCancelOrder}
+              />
+
+              {/* Order Items */}
+              <div>
+                <h3 className="font-semibold mb-3">Items</h3>
+                <div className="space-y-2">
+                  {orderItems.map((item) => (
+                    <div key={item.id} className="flex justify-between text-sm p-3 bg-muted/30 rounded">
+                      <div>
+                        <p className="font-medium">{item.product_name}</p>
+                        {(item.color || item.size) && (
+                          <p className="text-muted-foreground text-xs">
+                            {item.color}{item.color && item.size && ' / '}{item.size}
+                          </p>
+                        )}
+                        <p className="text-muted-foreground text-xs">Qty: {item.quantity}</p>
+                      </div>
+                      <span className="font-medium">{formatPrice(item.price * item.quantity)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Total */}
+              <div className="flex justify-between font-bold text-lg pt-4 border-t border-white/10">
+                <span>Total</span>
+                <span>{formatPrice(selectedOrder.total)}</span>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <Footer />
     </div>

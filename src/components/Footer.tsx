@@ -20,16 +20,16 @@ export function Footer() {
           <div>
             <h3 className="text-sm font-medium tracking-widest uppercase mb-6">Shop</h3>
             <ul className="space-y-3">
-              {['New Arrivals', 'Collections', 'Outerwear', 'Tops', 'Bottoms', 'Accessories'].map((item) => (
-                <li key={item}>
-                  <Link
-                    to="/shop"
-                    className="text-muted-foreground hover:text-foreground text-sm transition-colors"
-                  >
-                    {item}
-                  </Link>
-                </li>
-              ))}
+              <li>
+                <Link to="/shop" className="text-muted-foreground hover:text-foreground text-sm transition-colors">
+                  All Products
+                </Link>
+              </li>
+              <li>
+                <Link to="/collections" className="text-muted-foreground hover:text-foreground text-sm transition-colors">
+                  Collections
+                </Link>
+              </li>
             </ul>
           </div>
 
@@ -37,33 +37,38 @@ export function Footer() {
           <div>
             <h3 className="text-sm font-medium tracking-widest uppercase mb-6">Company</h3>
             <ul className="space-y-3">
-              {['About', 'Sustainability', 'Careers', 'Press', 'Contact'].map((item) => (
-                <li key={item}>
-                  <Link
-                    to="/about"
-                    className="text-muted-foreground hover:text-foreground text-sm transition-colors"
-                  >
-                    {item}
-                  </Link>
-                </li>
-              ))}
+              <li>
+                <Link to="/about" className="text-muted-foreground hover:text-foreground text-sm transition-colors">
+                  About Us
+                </Link>
+              </li>
+              <li>
+                <Link to="/contact" className="text-muted-foreground hover:text-foreground text-sm transition-colors">
+                  Contact
+                </Link>
+              </li>
             </ul>
           </div>
 
-          {/* Customer Care */}
+          {/* Legal */}
           <div>
-            <h3 className="text-sm font-medium tracking-widest uppercase mb-6">Customer Care</h3>
+            <h3 className="text-sm font-medium tracking-widest uppercase mb-6">Legal</h3>
             <ul className="space-y-3">
-              {['Shipping', 'Returns', 'Size Guide', 'FAQ', 'Contact Us'].map((item) => (
-                <li key={item}>
-                  <Link
-                    to="/about"
-                    className="text-muted-foreground hover:text-foreground text-sm transition-colors"
-                  >
-                    {item}
-                  </Link>
-                </li>
-              ))}
+              <li>
+                <Link to="/privacy-policy" className="text-muted-foreground hover:text-foreground text-sm transition-colors">
+                  Privacy Policy
+                </Link>
+              </li>
+              <li>
+                <Link to="/terms-conditions" className="text-muted-foreground hover:text-foreground text-sm transition-colors">
+                  Terms & Conditions
+                </Link>
+              </li>
+              <li>
+                <Link to="/refund-policy" className="text-muted-foreground hover:text-foreground text-sm transition-colors">
+                  Refund Policy
+                </Link>
+              </li>
             </ul>
           </div>
         </div>
