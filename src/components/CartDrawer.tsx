@@ -9,6 +9,14 @@ export function CartDrawer() {
   const { items, isOpen, closeCart, updateQuantity, removeItem, getTotal } = useCartStore();
   const total = getTotal();
 
+  const getProductImage = (item: typeof items[0]) => {
+    if (item.product.images && item.product.images.length > 0) {
+      const primaryImage = item.product.images.find(img => img.is_primary);
+      return primaryImage?.url || item.product.images[0].url;
+    }
+    return '/placeholder.svg';
+  };
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -57,7 +65,7 @@ export function CartDrawer() {
                     {/* Image */}
                     <div className="w-20 h-24 bg-secondary/20 rounded overflow-hidden flex-shrink-0">
                       <img
-                        src={item.product.images[0]}
+                        src={getProductImage(item)}
                         alt={item.product.name}
                         className="w-full h-full object-cover"
                       />
@@ -69,9 +77,16 @@ export function CartDrawer() {
                       <p className="text-muted-foreground text-sm">
                         {item.size} / {item.color}
                       </p>
-                      <p className="text-foreground mt-1">
-                        {formatPrice(item.product.price)}
-                      </p>
+                      <div className="mt-1 flex items-center gap-2">
+                        {item.discountedPrice && item.discountedPrice < item.priceAtAdd ? (
+                          <>
+                            <p className="text-foreground">{formatPrice(item.discountedPrice)}</p>
+                            <p className="text-muted-foreground text-sm line-through">{formatPrice(item.priceAtAdd)}</p>
+                          </>
+                        ) : (
+                          <p className="text-foreground">{formatPrice(item.priceAtAdd)}</p>
+                        )}
+                      </div>
 
                       {/* Quantity */}
                       <div className="flex items-center gap-3 mt-3">
