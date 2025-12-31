@@ -324,14 +324,7 @@ const Checkout = () => {
 
       }
 
-      // Deduct stock from variants
-      for (const update of stockUpdates) {
-        const newStock = Math.max(0, update.currentStock - update.quantity);
-        await supabase
-          .from('product_variants')
-          .update({ stock_quantity: newStock })
-          .eq('id', update.variantId);
-      }
+      // Stock is automatically deducted by database trigger on order_items insert
 
       // Create notification for user
       await supabase.from('notifications').insert({
