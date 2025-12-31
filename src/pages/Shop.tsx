@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { useSearchParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Filter, X } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
+import { Filter, X } from 'lucide-react';
 import { AnimatedBackground } from '@/components/AnimatedBackground';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
@@ -9,10 +9,10 @@ import { CartDrawer } from '@/components/CartDrawer';
 import { ProductCard } from '@/components/ProductCard';
 import { products, categories, collections } from '@/data/products';
 import { Button } from '@/components/ui/button';
+import { BackButton } from '@/components/BackButton';
 
 const Shop = () => {
   const [searchParams, setSearchParams] = useSearchParams();
-  const navigate = useNavigate();
   const [scrollProgress, setScrollProgress] = useState(0);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedCollection, setSelectedCollection] = useState<string | null>(
@@ -75,13 +75,7 @@ const Shop = () => {
             animate={{ opacity: 1, x: 0 }}
             className="mb-8"
           >
-            <button
-              onClick={() => navigate(-1)}
-              className="inline-flex items-center text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back
-            </button>
+            <BackButton fallbackTo="/" />
           </motion.div>
 
           {/* Page Header */}
