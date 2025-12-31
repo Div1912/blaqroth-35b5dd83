@@ -97,12 +97,12 @@ const AdminDashboard = () => {
                   <div className="text-right">
                     <p className="font-medium">{formatCurrency(order.total)}</p>
                     <span className={`text-xs px-2 py-1 rounded-full ${
-                      order.status === 'delivered' ? 'bg-green-100 text-green-700' :
-                      order.status === 'shipped' ? 'bg-blue-100 text-blue-700' :
-                      order.status === 'processing' ? 'bg-yellow-100 text-yellow-700' :
-                      'bg-gray-100 text-gray-700'
+                      order.fulfillment_status === 'delivered' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
+                      order.fulfillment_status === 'shipped' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' :
+                      order.fulfillment_status === 'processing' ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' :
+                      'bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400'
                     }`}>
-                      {order.status}
+                      {order.fulfillment_status || 'pending'}
                     </span>
                   </div>
                 </div>
