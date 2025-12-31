@@ -1,13 +1,14 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Minus, Plus, Heart, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Minus, Plus, Heart, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { AnimatedBackground } from '@/components/AnimatedBackground';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { CartDrawer } from '@/components/CartDrawer';
 import { Button } from '@/components/ui/button';
-import { products } from '@/data/products';
+import { Badge } from '@/components/ui/badge';
+import { useProduct, useActiveOffers, calculateDiscountedPrice } from '@/hooks/useProducts';
 import { useCartStore } from '@/store/cartStore';
 import { useWishlistStore } from '@/store/wishlistStore';
 import { useAuth } from '@/hooks/useAuth';
@@ -22,24 +23,55 @@ const ProductDetail = () => {
   const [quantity, setQuantity] = useState(1);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   
-  const product = products.find((p) => p.id === id);
+  const { data: product, isLoading } = useProduct(id || '');
+  const { data: offers } = useActiveOffers();
   const { addItem, openCart } = useCartStore();
   const { user } = useAuth();
   const { items: wishlistItems, addItem: addToWishlist, removeItem: removeFromWishlist } = useWishlistStore();
   
   const isInWishlist = product ? wishlistItems.includes(product.id) : false;
-  
-  // Get images based on selected color
-  const displayImages = useMemo(() => {
-    if (!product) return [];
-    const colorData = product.colors.find(c => c.name === selectedColor);
-    if (colorData?.image) {
-      // Put the color-specific image first, then other images
-      const otherImages = product.images.filter(img => img !== colorData.image);
-      return [colorData.image, ...otherImages];
-    }
-    return product.images;
-  }, [product, selectedColor]);
+
+  // Get unique colors and sizes from variants
+  const colors = useMemo(() => {
+    if (!product?.product_variants) return [];
+    const uniqueColors = [...new Set(product.product_variants.map(v => v.color).filter(Boolean))] as string[];
+    return uniqueColors;
+  }, [product]);
+
+  const sizes = useMemo(() => {
+    if (!product?.product_variants) return [];
+    const uniqueSizes = [...new Set(product.product_variants.map(v => v.size).filter(Boolean))] as string[];
+    return uniqueSizes;
+  }, [product]);
+
+  // Get current variant based on selection
+  const currentVariant = useMemo(() => {
+    if (!product?.product_variants || !selectedColor || !selectedSize) return null;
+    return product.product_variants.find(v => v.color === selectedColor && v.size === selectedSize);
+  }, [product, selectedColor, selectedSize]);
+
+  // Get available stock for current variant
+  const availableStock = currentVariant?.stock_quantity || 0;
+
+  // Check if size is available for selected color
+  const isSizeAvailable = (size: string) => {
+    if (!product?.product_variants || !selectedColor) return false;
+    const variant = product.product_variants.find(v => v.color === selectedColor && v.size === size);
+    return variant && (variant.stock_quantity || 0) > 0;
+  };
+
+  // Get images - sorted by display_order
+  const images = useMemo(() => {
+    if (!product?.product_images) return [];
+    return [...product.product_images].sort((a, b) => a.display_order - b.display_order);
+  }, [product]);
+
+  // Calculate price with offers
+  const priceInfo = useMemo(() => {
+    if (!product) return { finalPrice: 0, originalPrice: 0, discount: 0 };
+    const adjustment = currentVariant?.price_adjustment || 0;
+    return calculateDiscountedPrice(product.price, adjustment, offers || [], product.id, currentVariant?.id);
+  }, [product, currentVariant, offers]);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -52,18 +84,36 @@ const ProductDetail = () => {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
+  // Set default selections when product loads
   useEffect(() => {
-    if (product) {
-      setSelectedColor(product.colors[0]?.name || null);
-      setSelectedSize(product.sizes[0] || null);
-      setCurrentImageIndex(0);
+    if (product && colors.length > 0) {
+      setSelectedColor(colors[0]);
     }
-  }, [product]);
-  
-  // Reset image index when color changes
+  }, [product, colors]);
+
   useEffect(() => {
-    setCurrentImageIndex(0);
-  }, [selectedColor]);
+    if (product && sizes.length > 0 && selectedColor) {
+      // Find first available size for this color
+      const availableSize = sizes.find(size => isSizeAvailable(size));
+      setSelectedSize(availableSize || sizes[0]);
+    }
+  }, [selectedColor, sizes]);
+
+  const nextImage = () => {
+    setCurrentImageIndex((prev) => (prev + 1) % images.length);
+  };
+  
+  const prevImage = () => {
+    setCurrentImageIndex((prev) => (prev - 1 + images.length) % images.length);
+  };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   if (!product) {
     return (
@@ -83,7 +133,34 @@ const ProductDetail = () => {
       toast.error('Please select a size and color');
       return;
     }
-    addItem(product, selectedSize, selectedColor, quantity);
+
+    if (!currentVariant || availableStock === 0) {
+      toast.error('This variant is out of stock');
+      return;
+    }
+
+    if (quantity > availableStock) {
+      toast.error(`Only ${availableStock} items available`);
+      return;
+    }
+
+    // Create a product-like object for cart
+    const cartProduct = {
+      id: product.id,
+      name: product.name,
+      price: priceInfo.finalPrice,
+      originalPrice: priceInfo.discount > 0 ? priceInfo.originalPrice : undefined,
+      description: product.description || '',
+      category: product.category?.slug || '',
+      collection: '',
+      images: images.map(img => img.url),
+      sizes: sizes,
+      colors: colors.map(c => ({ name: c, hex: c.toLowerCase() })),
+      inStock: availableStock > 0,
+      variantId: currentVariant.id,
+    };
+
+    addItem(cartProduct as any, selectedSize, selectedColor, quantity);
     toast.success(`${product.name} added to bag`);
     openCart();
   };
@@ -100,14 +177,6 @@ const ProductDetail = () => {
       addToWishlist(product.id);
       toast.success('Added to wishlist');
     }
-  };
-  
-  const nextImage = () => {
-    setCurrentImageIndex((prev) => (prev + 1) % displayImages.length);
-  };
-  
-  const prevImage = () => {
-    setCurrentImageIndex((prev) => (prev - 1 + displayImages.length) % displayImages.length);
   };
 
   return (
@@ -144,21 +213,27 @@ const ProductDetail = () => {
             >
               {/* Main Image */}
               <div className="glass-card aspect-[3/4] overflow-hidden relative group">
-                <AnimatePresence mode="wait">
-                  <motion.img
-                    key={currentImageIndex}
-                    src={displayImages[currentImageIndex]}
-                    alt={`${product.name} - Image ${currentImageIndex + 1}`}
-                    className="w-full h-full object-cover"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.3 }}
-                  />
-                </AnimatePresence>
+                {images.length > 0 ? (
+                  <AnimatePresence mode="wait">
+                    <motion.img
+                      key={currentImageIndex}
+                      src={images[currentImageIndex]?.url}
+                      alt={`${product.name} - Image ${currentImageIndex + 1}`}
+                      className="w-full h-full object-cover"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.3 }}
+                    />
+                  </AnimatePresence>
+                ) : (
+                  <div className="w-full h-full bg-secondary/20 flex items-center justify-center">
+                    <span className="text-muted-foreground">No image</span>
+                  </div>
+                )}
                 
                 {/* Navigation Arrows */}
-                {displayImages.length > 1 && (
+                {images.length > 1 && (
                   <>
                     <button
                       onClick={prevImage}
@@ -176,25 +251,25 @@ const ProductDetail = () => {
                 )}
                 
                 {/* Image Counter */}
-                {displayImages.length > 1 && (
+                {images.length > 1 && (
                   <div className="absolute bottom-4 left-1/2 -translate-x-1/2 glass-panel px-3 py-1 text-sm">
-                    {currentImageIndex + 1} / {displayImages.length}
+                    {currentImageIndex + 1} / {images.length}
                   </div>
                 )}
               </div>
               
               {/* Thumbnail Strip */}
-              {displayImages.length > 1 && (
+              {images.length > 1 && (
                 <div className="flex gap-2 overflow-x-auto pb-2">
-                  {displayImages.map((img, idx) => (
+                  {images.map((img, idx) => (
                     <button
-                      key={idx}
+                      key={img.id}
                       onClick={() => setCurrentImageIndex(idx)}
                       className={`flex-shrink-0 w-20 h-24 rounded overflow-hidden border-2 transition-all ${
                         idx === currentImageIndex ? 'border-primary' : 'border-transparent opacity-60 hover:opacity-100'
                       }`}
                     >
-                      <img src={img} alt={`Thumbnail ${idx + 1}`} className="w-full h-full object-cover" />
+                      <img src={img.url} alt={`Thumbnail ${idx + 1}`} className="w-full h-full object-cover" />
                     </button>
                   ))}
                 </div>
@@ -210,14 +285,15 @@ const ProductDetail = () => {
             >
               {/* Badges */}
               <div className="flex gap-2 mb-4">
-                {product.isNew && (
-                  <span className="px-3 py-1 bg-primary text-primary-foreground text-xs tracking-widest uppercase">
-                    New
-                  </span>
+                {product.is_featured && (
+                  <Badge>Featured</Badge>
                 )}
-                <span className="px-3 py-1 bg-secondary text-secondary-foreground text-xs tracking-widest uppercase">
-                  {product.collection}
-                </span>
+                {priceInfo.discount > 0 && (
+                  <Badge variant="destructive">{priceInfo.offerTitle || 'Sale'}</Badge>
+                )}
+                {product.category && (
+                  <Badge variant="secondary">{product.category.name}</Badge>
+                )}
               </div>
 
               <h1 className="font-display text-4xl md:text-5xl tracking-wider mb-4">
@@ -226,12 +302,17 @@ const ProductDetail = () => {
 
               <div className="flex items-baseline gap-4 mb-8">
                 <span className="font-display text-3xl">
-                  {formatPrice(product.price)}
+                  {formatPrice(priceInfo.finalPrice)}
                 </span>
-                {product.originalPrice && (
-                  <span className="text-muted-foreground line-through text-xl">
-                    {formatPrice(product.originalPrice)}
-                  </span>
+                {priceInfo.discount > 0 && (
+                  <>
+                    <span className="text-muted-foreground line-through text-xl">
+                      {formatPrice(priceInfo.originalPrice)}
+                    </span>
+                    <Badge variant="destructive">
+                      Save {formatPrice(priceInfo.discount)}
+                    </Badge>
+                  </>
                 )}
               </div>
 
@@ -240,53 +321,65 @@ const ProductDetail = () => {
               </p>
 
               {/* Color Selection */}
-              <div className="mb-6">
-                <label className="text-sm tracking-widest uppercase mb-3 block">
-                  Color: <span className="text-primary">{selectedColor}</span>
-                </label>
-                <div className="flex gap-3">
-                  {product.colors.map((color) => (
-                    <button
-                      key={color.name}
-                      onClick={() => setSelectedColor(color.name)}
-                      className={`w-10 h-10 rounded-full border-2 transition-all ${
-                        selectedColor === color.name
-                          ? 'border-primary scale-110'
-                          : 'border-white/20 hover:border-white/40'
-                      }`}
-                      style={{ backgroundColor: color.hex }}
-                      title={color.name}
-                    />
-                  ))}
+              {colors.length > 0 && (
+                <div className="mb-6">
+                  <label className="text-sm tracking-widest uppercase mb-3 block">
+                    Color: <span className="text-primary">{selectedColor}</span>
+                  </label>
+                  <div className="flex gap-3">
+                    {colors.map((color) => (
+                      <button
+                        key={color}
+                        onClick={() => setSelectedColor(color)}
+                        className={`w-10 h-10 rounded-full border-2 transition-all ${
+                          selectedColor === color
+                            ? 'border-primary scale-110'
+                            : 'border-white/20 hover:border-white/40'
+                        }`}
+                        style={{ backgroundColor: color.toLowerCase() }}
+                        title={color}
+                      />
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Size Selection */}
-              <div className="mb-8">
-                <label className="text-sm tracking-widest uppercase mb-3 block">
-                  Size
-                </label>
-                <div className="flex flex-wrap gap-2">
-                  {product.sizes.map((size) => (
-                    <button
-                      key={size}
-                      onClick={() => setSelectedSize(size)}
-                      className={`h-12 min-w-12 px-4 border rounded transition-all ${
-                        selectedSize === size
-                          ? 'border-primary bg-primary/10 text-primary'
-                          : 'border-white/20 hover:border-white/40'
-                      }`}
-                    >
-                      {size}
-                    </button>
-                  ))}
+              {sizes.length > 0 && (
+                <div className="mb-8">
+                  <label className="text-sm tracking-widest uppercase mb-3 block">
+                    Size
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {sizes.map((size) => {
+                      const available = isSizeAvailable(size);
+                      return (
+                        <button
+                          key={size}
+                          onClick={() => available && setSelectedSize(size)}
+                          disabled={!available}
+                          className={`h-12 min-w-12 px-4 border rounded transition-all ${
+                            selectedSize === size
+                              ? 'border-primary bg-primary/10 text-primary'
+                              : available
+                              ? 'border-white/20 hover:border-white/40'
+                              : 'border-white/10 text-muted-foreground/50 cursor-not-allowed line-through'
+                          }`}
+                        >
+                          {size}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Quantity */}
               <div className="mb-8">
                 <label className="text-sm tracking-widest uppercase mb-3 block">
-                  Quantity
+                  Quantity {availableStock > 0 && availableStock <= 5 && (
+                    <span className="text-destructive">({availableStock} left)</span>
+                  )}
                 </label>
                 <div className="flex items-center gap-4 glass-panel w-fit px-4 py-2">
                   <button
@@ -297,8 +390,9 @@ const ProductDetail = () => {
                   </button>
                   <span className="w-8 text-center font-medium">{quantity}</span>
                   <button
-                    onClick={() => setQuantity(quantity + 1)}
+                    onClick={() => setQuantity(Math.min(availableStock, quantity + 1))}
                     className="p-2 hover:bg-white/5 rounded transition-colors"
+                    disabled={quantity >= availableStock}
                   >
                     <Plus className="h-4 w-4" />
                   </button>
@@ -312,9 +406,9 @@ const ProductDetail = () => {
                   size="xl"
                   className="flex-1"
                   onClick={handleAddToCart}
-                  disabled={!product.inStock}
+                  disabled={!currentVariant || availableStock === 0}
                 >
-                  {product.inStock ? 'Add to Bag' : 'Out of Stock'}
+                  {availableStock === 0 ? 'Out of Stock' : 'Add to Bag'}
                 </Button>
                 <Button 
                   variant="glass" 
@@ -327,7 +421,7 @@ const ProductDetail = () => {
               </div>
 
               {/* Stock Status */}
-              {product.inStock && (
+              {availableStock > 0 && (
                 <p className="text-sm text-muted-foreground mt-4">
                   ✓ In stock, ready to ship
                 </p>
