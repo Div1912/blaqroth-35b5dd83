@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Minus, Plus, Heart, ChevronLeft, ChevronRight } from 'lucide-react';
 import { AnimatedBackground } from '@/components/AnimatedBackground';
 import { Header } from '@/components/Header';
@@ -20,9 +20,26 @@ const ProductDetail = () => {
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
   const [selectedColor, setSelectedColor] = useState<string | null>(null);
   const [quantity, setQuantity] = useState(1);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
   
   const product = products.find((p) => p.id === id);
   const { addItem, openCart } = useCartStore();
+  const { user } = useAuth();
+  const { items: wishlistItems, addItem: addToWishlist, removeItem: removeFromWishlist } = useWishlistStore();
+  
+  const isInWishlist = product ? wishlistItems.includes(product.id) : false;
+  
+  // Get images based on selected color
+  const displayImages = useMemo(() => {
+    if (!product) return [];
+    const colorData = product.colors.find(c => c.name === selectedColor);
+    if (colorData?.image) {
+      // Put the color-specific image first, then other images
+      const otherImages = product.images.filter(img => img !== colorData.image);
+      return [colorData.image, ...otherImages];
+    }
+    return product.images;
+  }, [product, selectedColor]);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -39,8 +56,14 @@ const ProductDetail = () => {
     if (product) {
       setSelectedColor(product.colors[0]?.name || null);
       setSelectedSize(product.sizes[0] || null);
+      setCurrentImageIndex(0);
     }
   }, [product]);
+  
+  // Reset image index when color changes
+  useEffect(() => {
+    setCurrentImageIndex(0);
+  }, [selectedColor]);
 
   if (!product) {
     return (
@@ -63,6 +86,28 @@ const ProductDetail = () => {
     addItem(product, selectedSize, selectedColor, quantity);
     toast.success(`${product.name} added to bag`);
     openCart();
+  };
+  
+  const handleWishlist = () => {
+    if (!user) {
+      toast.error('Please sign in to add items to wishlist');
+      return;
+    }
+    if (isInWishlist) {
+      removeFromWishlist(product.id);
+      toast.success('Removed from wishlist');
+    } else {
+      addToWishlist(product.id);
+      toast.success('Added to wishlist');
+    }
+  };
+  
+  const nextImage = () => {
+    setCurrentImageIndex((prev) => (prev + 1) % displayImages.length);
+  };
+  
+  const prevImage = () => {
+    setCurrentImageIndex((prev) => (prev - 1 + displayImages.length) % displayImages.length);
   };
 
   return (
@@ -90,19 +135,70 @@ const ProductDetail = () => {
           </motion.div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20">
-            {/* Images */}
+            {/* Images with Slider */}
             <motion.div
               initial={{ opacity: 0, x: -30 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.6 }}
+              className="space-y-4"
             >
-              <div className="glass-card aspect-[3/4] overflow-hidden">
-                <img
-                  src={product.images[0]}
-                  alt={product.name}
-                  className="w-full h-full object-cover"
-                />
+              {/* Main Image */}
+              <div className="glass-card aspect-[3/4] overflow-hidden relative group">
+                <AnimatePresence mode="wait">
+                  <motion.img
+                    key={currentImageIndex}
+                    src={displayImages[currentImageIndex]}
+                    alt={`${product.name} - Image ${currentImageIndex + 1}`}
+                    className="w-full h-full object-cover"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.3 }}
+                  />
+                </AnimatePresence>
+                
+                {/* Navigation Arrows */}
+                {displayImages.length > 1 && (
+                  <>
+                    <button
+                      onClick={prevImage}
+                      className="absolute left-4 top-1/2 -translate-y-1/2 p-2 glass-panel opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <ChevronLeft className="h-5 w-5" />
+                    </button>
+                    <button
+                      onClick={nextImage}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 p-2 glass-panel opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <ChevronRight className="h-5 w-5" />
+                    </button>
+                  </>
+                )}
+                
+                {/* Image Counter */}
+                {displayImages.length > 1 && (
+                  <div className="absolute bottom-4 left-1/2 -translate-x-1/2 glass-panel px-3 py-1 text-sm">
+                    {currentImageIndex + 1} / {displayImages.length}
+                  </div>
+                )}
               </div>
+              
+              {/* Thumbnail Strip */}
+              {displayImages.length > 1 && (
+                <div className="flex gap-2 overflow-x-auto pb-2">
+                  {displayImages.map((img, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => setCurrentImageIndex(idx)}
+                      className={`flex-shrink-0 w-20 h-24 rounded overflow-hidden border-2 transition-all ${
+                        idx === currentImageIndex ? 'border-primary' : 'border-transparent opacity-60 hover:opacity-100'
+                      }`}
+                    >
+                      <img src={img} alt={`Thumbnail ${idx + 1}`} className="w-full h-full object-cover" />
+                    </button>
+                  ))}
+                </div>
+              )}
             </motion.div>
 
             {/* Details */}
@@ -130,11 +226,11 @@ const ProductDetail = () => {
 
               <div className="flex items-baseline gap-4 mb-8">
                 <span className="font-display text-3xl">
-                  ${product.price.toLocaleString()}
+                  {formatPrice(product.price)}
                 </span>
                 {product.originalPrice && (
                   <span className="text-muted-foreground line-through text-xl">
-                    ${product.originalPrice.toLocaleString()}
+                    {formatPrice(product.originalPrice)}
                   </span>
                 )}
               </div>
@@ -220,8 +316,13 @@ const ProductDetail = () => {
                 >
                   {product.inStock ? 'Add to Bag' : 'Out of Stock'}
                 </Button>
-                <Button variant="glass" size="xl">
-                  <Heart className="h-5 w-5" />
+                <Button 
+                  variant="glass" 
+                  size="xl"
+                  onClick={handleWishlist}
+                  className={isInWishlist ? 'text-red-500' : ''}
+                >
+                  <Heart className={`h-5 w-5 ${isInWishlist ? 'fill-current' : ''}`} />
                 </Button>
               </div>
 

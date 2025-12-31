@@ -64,17 +64,24 @@ const Collections = () => {
                     }`}
                   >
                     {/* Visual */}
-                    <div className="w-full md:w-1/2 aspect-[4/3] md:aspect-auto relative overflow-hidden">
-                      <div
-                        className="absolute inset-0"
-                        style={{
-                          background: `linear-gradient(135deg, ${collection.color}30, ${collection.color}10)`,
-                        }}
-                      />
-                      <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="w-full md:w-1/2 aspect-[4/3] md:aspect-auto relative overflow-hidden min-h-[300px]">
+                      {collection.image ? (
+                        <img
+                          src={collection.image}
+                          alt={collection.name}
+                          className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                        />
+                      ) : (
+                        <div
+                          className="absolute inset-0"
+                          style={{
+                            background: `linear-gradient(135deg, ${collection.color}30, ${collection.color}10)`,
+                          }}
+                        />
+                      )}
+                      <div className="absolute inset-0 bg-background/40 flex items-center justify-center">
                         <span
-                          className="font-display text-7xl md:text-9xl tracking-[0.2em] opacity-30 group-hover:opacity-50 transition-opacity duration-500"
-                          style={{ color: collection.color }}
+                          className="font-display text-5xl md:text-7xl tracking-[0.2em] text-foreground opacity-80 group-hover:opacity-100 transition-opacity duration-500 drop-shadow-lg"
                         >
                           {collection.name.split(' ')[0]}
                         </span>
