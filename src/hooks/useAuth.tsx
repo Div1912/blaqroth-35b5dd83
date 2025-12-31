@@ -6,8 +6,9 @@ interface AuthContextType {
   user: User | null;
   session: Session | null;
   loading: boolean;
-  signUp: (email: string, password: string, fullName?: string) => Promise<{ error: Error | null }>;
+  signUp: (email: string, password: string, fullName?: string, phone?: string, phoneCountryCode?: string) => Promise<{ error: Error | null }>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
+  signInWithGoogle: () => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
 }
 
@@ -38,19 +39,43 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
-  const signUp = async (email: string, password: string, fullName?: string) => {
+  const signUp = async (
+    email: string, 
+    password: string, 
+    fullName?: string, 
+    phone?: string, 
+    phoneCountryCode?: string
+  ) => {
     const redirectUrl = `${window.location.origin}/`;
     
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
         emailRedirectTo: redirectUrl,
         data: {
           full_name: fullName,
+          phone: phone,
+          phone_country_code: phoneCountryCode || '+91',
         },
       },
     });
+
+    // If signup successful and we have additional data, update the customers table
+    if (!error && data.user && (phone || fullName)) {
+      // The trigger will create the customer record, but we need to update phone
+      setTimeout(async () => {
+        await supabase
+          .from('customers')
+          .update({
+            phone: phone || null,
+            phone_country_code: phoneCountryCode || '+91',
+            full_name: fullName || null,
+          })
+          .eq('id', data.user!.id);
+      }, 1000);
+    }
+
     return { error: error as Error | null };
   };
 
@@ -62,12 +87,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { error: error as Error | null };
   };
 
+  const signInWithGoogle = async () => {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: `${window.location.origin}/`,
+      },
+    });
+    return { error: error as Error | null };
+  };
+
   const signOut = async () => {
     await supabase.auth.signOut();
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, loading, signUp, signIn, signOut }}>
+    <AuthContext.Provider value={{ user, session, loading, signUp, signIn, signInWithGoogle, signOut }}>
       {children}
     </AuthContext.Provider>
   );
