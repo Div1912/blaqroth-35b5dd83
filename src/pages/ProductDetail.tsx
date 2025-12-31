@@ -144,23 +144,26 @@ const ProductDetail = () => {
       return;
     }
 
-    // Create a product-like object for cart
+    // Create a product object for cart with images
     const cartProduct = {
       id: product.id,
       name: product.name,
-      price: priceInfo.finalPrice,
-      originalPrice: priceInfo.discount > 0 ? priceInfo.originalPrice : undefined,
-      description: product.description || '',
-      category: product.category?.slug || '',
-      collection: '',
-      images: images.map(img => img.url),
-      sizes: sizes,
-      colors: colors.map(c => ({ name: c, hex: c.toLowerCase() })),
-      inStock: availableStock > 0,
-      variantId: currentVariant.id,
+      slug: product.slug,
+      price: priceInfo.originalPrice,
+      compare_at_price: product.compare_at_price,
+      description: product.description,
+      images: images.map(img => ({ id: img.id, url: img.url, is_primary: img.is_primary })),
     };
 
-    addItem(cartProduct as any, selectedSize, selectedColor, quantity);
+    addItem(
+      cartProduct, 
+      currentVariant.id, 
+      selectedSize, 
+      selectedColor, 
+      priceInfo.originalPrice, 
+      priceInfo.discount > 0 ? priceInfo.finalPrice : undefined, 
+      quantity
+    );
     toast.success(`${product.name} added to bag`);
     openCart();
   };

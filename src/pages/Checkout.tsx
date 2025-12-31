@@ -6,8 +6,9 @@ import { AnimatedBackground } from '@/components/AnimatedBackground';
 import { Header } from '@/components/Header';
 import { Button } from '@/components/ui/button';
 import { BackButton } from '@/components/BackButton';
-import { useCartStore } from '@/store/cartStore';
+import { useCartStore, DBCartItem } from '@/store/cartStore';
 import { useAuth } from '@/hooks/useAuth';
+import { useGlobalLoader } from '@/hooks/useGlobalLoader';
 import { formatPrice } from '@/lib/formatCurrency';
 import { indianStates } from '@/lib/countryCodes';
 import { supabase } from '@/integrations/supabase/client';
@@ -54,10 +55,13 @@ const emptyForm: AddressFormData = {
 const Checkout = () => {
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
+  const { startLoading, stopLoading } = useGlobalLoader();
   const [scrollProgress, setScrollProgress] = useState(0);
   const [currentStep, setCurrentStep] = useState<CheckoutStep>('shipping');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cod');
   const { items, getTotal, clearCart } = useCartStore();
+  const [orderNumber, setOrderNumber] = useState<string>('');
+  const [placingOrder, setPlacingOrder] = useState(false);
   const total = getTotal();
   const shipping = total > 50000 ? 0 : 500;
 
@@ -133,7 +137,6 @@ const Checkout = () => {
       prefillFromProfile();
     } else {
       setAddresses(data || []);
-      // Auto-select default address or first address
       const defaultAddr = data?.find((a) => a.is_default) || data?.[0];
       if (defaultAddr) {
         setSelectedAddressId(defaultAddr.id);
@@ -191,17 +194,175 @@ const Checkout = () => {
     { id: 'confirmation', label: 'Confirmation', icon: Package },
   ];
 
-  const handlePlaceOrder = () => {
-    if (!selectedAddressId && !showAddressForm) {
+  const generateOrderNumber = () => {
+    const timestamp = Date.now().toString(36).toUpperCase();
+    const random = Math.random().toString(36).substr(2, 4).toUpperCase();
+    return `BLQ-${timestamp}-${random}`;
+  };
+
+  const handlePlaceOrder = async () => {
+    if (!user) {
+      toast.error('Please sign in to place order');
+      return;
+    }
+
+    if (!selectedAddressId) {
       toast.error('Please select a shipping address');
       return;
     }
-    setCurrentStep('confirmation');
-    clearCart();
-    toast.success('Order placed successfully!');
+
+    const selectedAddress = addresses.find(a => a.id === selectedAddressId);
+    if (!selectedAddress) {
+      toast.error('Invalid address selected');
+      return;
+    }
+
+    if (items.length === 0) {
+      toast.error('Your cart is empty');
+      return;
+    }
+
+    setPlacingOrder(true);
+    startLoading();
+
+    try {
+      // Verify stock for all items and collect variant data for later update
+      const stockUpdates: { variantId: string; quantity: number; currentStock: number }[] = [];
+      
+      for (const item of items) {
+        if (item.variantId) {
+          const { data: variant, error } = await supabase
+            .from('product_variants')
+            .select('stock_quantity')
+            .eq('id', item.variantId)
+            .single();
+
+          if (error || !variant) {
+            throw new Error(`Could not verify stock for ${item.product.name}`);
+          }
+
+          if ((variant.stock_quantity || 0) < item.quantity) {
+            throw new Error(`Insufficient stock for ${item.product.name} (${item.size}/${item.color})`);
+          }
+          
+          stockUpdates.push({
+            variantId: item.variantId,
+            quantity: item.quantity,
+            currentStock: variant.stock_quantity || 0
+          });
+        }
+      }
+
+      // Get customer profile
+      const { data: customer } = await supabase
+        .from('customers')
+        .select('email, full_name, phone')
+        .eq('id', user.id)
+        .single();
+
+      const newOrderNumber = generateOrderNumber();
+      const subtotal = getTotal();
+      const orderTotal = subtotal + shipping;
+
+      // Create order
+      const { data: order, error: orderError } = await supabase
+        .from('orders')
+        .insert({
+          customer_id: user.id,
+          order_number: newOrderNumber,
+          email: customer?.email || user.email || '',
+          full_name: selectedAddress.full_name,
+          phone: selectedAddress.phone,
+          shipping_address_id: selectedAddressId,
+          shipping_address_line1: selectedAddress.address_line1,
+          shipping_address_line2: selectedAddress.address_line2,
+          shipping_city: selectedAddress.city,
+          shipping_state: selectedAddress.state,
+          shipping_postal_code: selectedAddress.postal_code,
+          shipping_country: selectedAddress.country || 'India',
+          subtotal: subtotal,
+          shipping_cost: shipping,
+          total: orderTotal,
+          payment_method: paymentMethod,
+          payment_status: paymentMethod === 'cod' ? 'pending' : 'pending',
+          status: 'pending',
+          fulfillment_status: 'pending',
+          delivery_mode: 'self',
+        })
+        .select()
+        .single();
+
+      if (orderError || !order) {
+        throw new Error('Failed to create order');
+      }
+
+      // Create order items and deduct stock
+      for (const item of items) {
+        const finalPrice = item.discountedPrice ?? item.priceAtAdd;
+        const discountAmount = item.priceAtAdd - finalPrice;
+
+        // Insert order item
+        const { error: itemError } = await supabase
+          .from('order_items')
+          .insert({
+            order_id: order.id,
+            product_id: item.product.id,
+            variant_id: item.variantId,
+            product_name: item.product.name,
+            color: item.color,
+            size: item.size,
+            quantity: item.quantity,
+            original_price: item.priceAtAdd,
+            price: finalPrice,
+            discount_amount: discountAmount > 0 ? discountAmount : 0,
+            subtotal: finalPrice * item.quantity,
+          });
+
+        if (itemError) {
+          console.error('Failed to create order item:', itemError);
+        }
+
+      }
+
+      // Deduct stock from variants
+      for (const update of stockUpdates) {
+        const newStock = Math.max(0, update.currentStock - update.quantity);
+        await supabase
+          .from('product_variants')
+          .update({ stock_quantity: newStock })
+          .eq('id', update.variantId);
+      }
+
+      // Create notification for user
+      await supabase.from('notifications').insert({
+        customer_id: user.id,
+        title: 'Order Placed Successfully',
+        message: `Your order ${newOrderNumber} has been placed and is being processed.`,
+        type: 'order',
+      });
+
+      setOrderNumber(newOrderNumber);
+      setCurrentStep('confirmation');
+      clearCart();
+      toast.success('Order placed successfully!');
+    } catch (error: any) {
+      console.error('Order error:', error);
+      toast.error(error.message || 'Failed to place order');
+    } finally {
+      setPlacingOrder(false);
+      stopLoading();
+    }
   };
 
   const selectedAddress = addresses.find(a => a.id === selectedAddressId);
+
+  const getProductImage = (item: DBCartItem) => {
+    if (item.product.images && item.product.images.length > 0) {
+      const primaryImage = item.product.images.find(img => img.is_primary);
+      return primaryImage?.url || item.product.images[0].url;
+    }
+    return '/placeholder.svg';
+  };
 
   if (authLoading) {
     return (
@@ -530,8 +691,14 @@ const Checkout = () => {
 
                   <div className="flex gap-4 mt-8">
                     <Button variant="glass" size="lg" onClick={() => setCurrentStep('shipping')}>Back</Button>
-                    <Button variant="hero" size="xl" className="flex-1" onClick={handlePlaceOrder} disabled={paymentMethod === 'razorpay'}>
-                      {paymentMethod === 'cod' ? 'Place Order (COD)' : 'Pay Now'}
+                    <Button 
+                      variant="hero" 
+                      size="xl" 
+                      className="flex-1" 
+                      onClick={handlePlaceOrder} 
+                      disabled={paymentMethod === 'razorpay' || placingOrder}
+                    >
+                      {placingOrder ? 'Placing Order...' : paymentMethod === 'cod' ? 'Place Order (COD)' : 'Pay Now'}
                     </Button>
                   </div>
                 </motion.div>
@@ -544,11 +711,16 @@ const Checkout = () => {
                   </div>
                   <h2 className="font-display text-4xl tracking-wider mb-4">Order Confirmed</h2>
                   <p className="text-muted-foreground text-lg mb-2">Thank you for your order!</p>
-                  <p className="text-muted-foreground mb-8">Order #BLQ-{Math.random().toString(36).substr(2, 9).toUpperCase()}</p>
-                  <p className="text-muted-foreground mb-12">You will receive a confirmation email shortly.</p>
-                  <Button variant="hero" size="xl" asChild>
-                    <Link to="/shop">Continue Shopping</Link>
-                  </Button>
+                  <p className="text-foreground font-medium text-xl mb-8">Order #{orderNumber}</p>
+                  <p className="text-muted-foreground mb-12">You will receive a confirmation email shortly. Track your order in your account.</p>
+                  <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                    <Button variant="hero" size="xl" asChild>
+                      <Link to="/account">View Orders</Link>
+                    </Button>
+                    <Button variant="glass" size="lg" asChild>
+                      <Link to="/shop">Continue Shopping</Link>
+                    </Button>
+                  </div>
                 </motion.div>
               )}
             </div>
@@ -561,12 +733,21 @@ const Checkout = () => {
                     {items.map((item) => (
                       <div key={`${item.product.id}-${item.size}-${item.color}`} className="flex gap-4">
                         <div className="w-16 h-20 bg-secondary/20 rounded overflow-hidden flex-shrink-0">
-                          <img src={item.product.images[0]} alt={item.product.name} className="w-full h-full object-cover" />
+                          <img src={getProductImage(item)} alt={item.product.name} className="w-full h-full object-cover" />
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="font-medium truncate">{item.product.name}</p>
                           <p className="text-muted-foreground text-sm">{item.size} / {item.color} × {item.quantity}</p>
-                          <p className="text-foreground mt-1">{formatPrice(item.product.price * item.quantity)}</p>
+                          <div className="mt-1 flex items-center gap-2">
+                            {item.discountedPrice && item.discountedPrice < item.priceAtAdd ? (
+                              <>
+                                <p className="text-foreground">{formatPrice((item.discountedPrice) * item.quantity)}</p>
+                                <p className="text-muted-foreground text-xs line-through">{formatPrice(item.priceAtAdd * item.quantity)}</p>
+                              </>
+                            ) : (
+                              <p className="text-foreground">{formatPrice(item.priceAtAdd * item.quantity)}</p>
+                            )}
+                          </div>
                         </div>
                       </div>
                     ))}
