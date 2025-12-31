@@ -1,13 +1,23 @@
 import { Product, Category, Collection } from '@/types';
 
 import woolCoatImg from '@/assets/products/wool-coat.jpg';
+import woolCoatImg2 from '@/assets/products/wool-coat-2.jpg';
+import woolCoatCharcoalImg from '@/assets/products/wool-coat-charcoal.jpg';
 import blazerImg from '@/assets/products/blazer.jpg';
+import blazerIvoryImg from '@/assets/products/blazer-ivory.jpg';
 import silkShirtImg from '@/assets/products/silk-shirt.jpg';
+import silkShirtCreamImg from '@/assets/products/silk-shirt-cream.jpg';
 import trousersImg from '@/assets/products/trousers.jpg';
 import turtleneckImg from '@/assets/products/turtleneck.jpg';
+import turtleneckCamelImg from '@/assets/products/turtleneck-camel.jpg';
 import leatherBeltImg from '@/assets/products/leather-belt.jpg';
 import leatherBagImg from '@/assets/products/leather-bag.jpg';
+import leatherBagCognacImg from '@/assets/products/leather-bag-cognac.jpg';
 import jerseyTopImg from '@/assets/products/jersey-top.jpg';
+
+import noirCollectionImg from '@/assets/collections/noir-collection.jpg';
+import eclipseCollectionImg from '@/assets/collections/eclipse-collection.jpg';
+import gildedCollectionImg from '@/assets/collections/gilded-collection.jpg';
 
 export const categories: Category[] = [
   {
@@ -47,6 +57,7 @@ export const collections: Collection[] = [
     slug: 'noir',
     description: 'A meditation on darkness. Pure black expressions that transcend seasons.',
     color: '#0a0a0a',
+    image: noirCollectionImg,
     products: [],
   },
   {
@@ -55,6 +66,7 @@ export const collections: Collection[] = [
     slug: 'eclipse',
     description: 'Where shadow meets light. Tonal explorations in charcoal and ivory.',
     color: '#2a2a2a',
+    image: eclipseCollectionImg,
     products: [],
   },
   {
@@ -63,6 +75,7 @@ export const collections: Collection[] = [
     slug: 'gilded',
     description: 'Subtle metallic accents. Understated luxury for those who know.',
     color: '#c9a962',
+    image: gildedCollectionImg,
     products: [],
   },
 ];
@@ -75,11 +88,11 @@ export const products: Product[] = [
     description: 'A statement piece crafted from Italian wool. Relaxed silhouette with structured shoulders. Fully lined with signature hardware.',
     category: 'outerwear',
     collection: 'noir',
-    images: [woolCoatImg],
+    images: [woolCoatImg, woolCoatImg2, woolCoatCharcoalImg],
     sizes: ['XS', 'S', 'M', 'L', 'XL'],
     colors: [
-      { name: 'Obsidian', hex: '#0a0a0a' },
-      { name: 'Charcoal', hex: '#2a2a2a' },
+      { name: 'Obsidian', hex: '#0a0a0a', image: woolCoatImg },
+      { name: 'Charcoal', hex: '#2a2a2a', image: woolCoatCharcoalImg },
     ],
     inStock: true,
     featured: true,
@@ -92,11 +105,11 @@ export const products: Product[] = [
     description: 'Precision tailoring meets contemporary edge. Single-breasted construction with peak lapels and a slightly cropped length.',
     category: 'outerwear',
     collection: 'eclipse',
-    images: [blazerImg],
+    images: [blazerImg, blazerIvoryImg],
     sizes: ['XS', 'S', 'M', 'L', 'XL'],
     colors: [
-      { name: 'Obsidian', hex: '#0a0a0a' },
-      { name: 'Ivory', hex: '#f5f5f0' },
+      { name: 'Obsidian', hex: '#0a0a0a', image: blazerImg },
+      { name: 'Ivory', hex: '#f5f5f0', image: blazerIvoryImg },
     ],
     inStock: true,
     featured: true,
@@ -108,11 +121,11 @@ export const products: Product[] = [
     description: 'Fluid elegance in a refined silk-cotton blend. Relaxed fit with mother-of-pearl buttons.',
     category: 'tops',
     collection: 'noir',
-    images: [silkShirtImg],
+    images: [silkShirtImg, silkShirtCreamImg],
     sizes: ['XS', 'S', 'M', 'L', 'XL'],
     colors: [
-      { name: 'Obsidian', hex: '#0a0a0a' },
-      { name: 'Cream', hex: '#f8f4e8' },
+      { name: 'Obsidian', hex: '#0a0a0a', image: silkShirtImg },
+      { name: 'Cream', hex: '#f8f4e8', image: silkShirtCreamImg },
     ],
     inStock: true,
     featured: true,
@@ -127,8 +140,8 @@ export const products: Product[] = [
     images: [trousersImg],
     sizes: ['XS', 'S', 'M', 'L', 'XL'],
     colors: [
-      { name: 'Charcoal', hex: '#2a2a2a' },
-      { name: 'Obsidian', hex: '#0a0a0a' },
+      { name: 'Charcoal', hex: '#2a2a2a', image: trousersImg },
+      { name: 'Obsidian', hex: '#0a0a0a', image: trousersImg },
     ],
     inStock: true,
   },
@@ -139,11 +152,11 @@ export const products: Product[] = [
     description: 'Pure Mongolian cashmere in a timeless silhouette. Slim fit with ribbed cuffs and hem.',
     category: 'tops',
     collection: 'noir',
-    images: [turtleneckImg],
+    images: [turtleneckImg, turtleneckCamelImg],
     sizes: ['XS', 'S', 'M', 'L', 'XL'],
     colors: [
-      { name: 'Obsidian', hex: '#0a0a0a' },
-      { name: 'Camel', hex: '#c19a6b' },
+      { name: 'Obsidian', hex: '#0a0a0a', image: turtleneckImg },
+      { name: 'Camel', hex: '#c19a6b', image: turtleneckCamelImg },
     ],
     inStock: true,
     featured: true,
@@ -158,7 +171,7 @@ export const products: Product[] = [
     images: [leatherBeltImg],
     sizes: ['S', 'M', 'L'],
     colors: [
-      { name: 'Obsidian', hex: '#0a0a0a' },
+      { name: 'Obsidian', hex: '#0a0a0a', image: leatherBeltImg },
     ],
     inStock: true,
   },
@@ -169,11 +182,11 @@ export const products: Product[] = [
     description: 'Architectural form in supple calfskin. Unlined interior with magnetic closure.',
     category: 'accessories',
     collection: 'gilded',
-    images: [leatherBagImg],
+    images: [leatherBagImg, leatherBagCognacImg],
     sizes: ['One Size'],
     colors: [
-      { name: 'Obsidian', hex: '#0a0a0a' },
-      { name: 'Cognac', hex: '#8b4513' },
+      { name: 'Obsidian', hex: '#0a0a0a', image: leatherBagImg },
+      { name: 'Cognac', hex: '#8b4513', image: leatherBagCognacImg },
     ],
     inStock: true,
     featured: true,
@@ -189,8 +202,8 @@ export const products: Product[] = [
     images: [jerseyTopImg],
     sizes: ['XS', 'S', 'M', 'L', 'XL'],
     colors: [
-      { name: 'Obsidian', hex: '#0a0a0a' },
-      { name: 'Slate', hex: '#4a4a4a' },
+      { name: 'Obsidian', hex: '#0a0a0a', image: jerseyTopImg },
+      { name: 'Slate', hex: '#4a4a4a', image: jerseyTopImg },
     ],
     inStock: true,
   },

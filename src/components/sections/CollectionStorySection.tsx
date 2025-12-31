@@ -43,30 +43,38 @@ export function CollectionStorySection() {
             >
               {/* Visual */}
               <div className="w-full md:w-1/2">
-                <div
-                  className="glass-card aspect-[4/5] relative overflow-hidden"
-                  style={{
-                    background: `linear-gradient(135deg, ${collection.color}20, transparent)`,
-                  }}
-                >
+                <div className="glass-card aspect-[4/5] relative overflow-hidden">
+                  {collection.image ? (
+                    <img
+                      src={collection.image}
+                      alt={collection.name}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <>
+                      <div
+                        className="absolute inset-0 opacity-20"
+                        style={{
+                          background: `radial-gradient(circle at center, ${collection.color}, transparent 70%)`,
+                        }}
+                      />
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <motion.span
+                          initial={{ opacity: 0, scale: 0.9 }}
+                          whileInView={{ opacity: 1, scale: 1 }}
+                          viewport={{ once: true }}
+                          transition={{ duration: 1, delay: 0.4 }}
+                          className="font-display text-6xl md:text-8xl tracking-[0.2em] opacity-30"
+                          style={{ color: collection.color }}
+                        >
+                          {collection.name.split(' ')[0]}
+                        </motion.span>
+                      </div>
+                    </>
+                  )}
                   <div
-                    className="absolute inset-0 opacity-20"
-                    style={{
-                      background: `radial-gradient(circle at center, ${collection.color}, transparent 70%)`,
-                    }}
+                    className="absolute inset-0 bg-gradient-to-t from-background/60 via-transparent to-transparent"
                   />
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <motion.span
-                      initial={{ opacity: 0, scale: 0.9 }}
-                      whileInView={{ opacity: 1, scale: 1 }}
-                      viewport={{ once: true }}
-                      transition={{ duration: 1, delay: 0.4 }}
-                      className="font-display text-6xl md:text-8xl tracking-[0.2em] opacity-30"
-                      style={{ color: collection.color }}
-                    >
-                      {collection.name.split(' ')[0]}
-                    </motion.span>
-                  </div>
                 </div>
               </div>
 
