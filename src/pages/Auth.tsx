@@ -1,13 +1,16 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Mail, Lock, User, Eye, EyeOff } from 'lucide-react';
 import { AnimatedBackground } from '@/components/AnimatedBackground';
 import { Header } from '@/components/Header';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
+import { useAuth } from '@/hooks/useAuth';
 
 const Auth = () => {
+  const navigate = useNavigate();
+  const { user, signIn, signUp, loading: authLoading } = useAuth();
   const [searchParams] = useSearchParams();
   const [scrollProgress, setScrollProgress] = useState(0);
   const [mode, setMode] = useState<'signin' | 'signup'>(
@@ -19,8 +22,7 @@ const Auth = () => {
   const [formData, setFormData] = useState({
     email: '',
     password: '',
-    firstName: '',
-    lastName: '',
+    fullName: '',
   });
 
   useEffect(() => {
@@ -34,20 +36,60 @@ const Auth = () => {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
+  // Redirect if already logged in
+  useEffect(() => {
+    if (user && !authLoading) {
+      navigate('/account');
+    }
+  }, [user, authLoading, navigate]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
-    // Placeholder for auth logic - will be connected to Supabase
-    setTimeout(() => {
+    try {
+      if (mode === 'signup') {
+        const { error } = await signUp(formData.email, formData.password, formData.fullName);
+        if (error) {
+          if (error.message.includes('already registered')) {
+            toast.error('This email is already registered. Please sign in.');
+          } else {
+            toast.error(error.message);
+          }
+        } else {
+          toast.success('Account created! Please check your email to verify your account.');
+        }
+      } else {
+        const { error } = await signIn(formData.email, formData.password);
+        if (error) {
+          if (error.message.includes('Invalid login')) {
+            toast.error('Invalid email or password');
+          } else {
+            toast.error(error.message);
+          }
+        } else {
+          toast.success('Welcome back!');
+          navigate('/account');
+        }
+      }
+    } catch (error) {
+      toast.error('An unexpected error occurred');
+    } finally {
       setIsLoading(false);
-      toast.info('Authentication requires backend setup. Enable Lovable Cloud to add authentication.');
-    }, 1000);
+    }
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
   };
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <p className="text-muted-foreground">Loading...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background relative">
@@ -85,34 +127,19 @@ const Auth = () => {
 
               <form onSubmit={handleSubmit} className="space-y-5">
                 {mode === 'signup' && (
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="text-sm text-muted-foreground block mb-2">
-                        First Name
-                      </label>
-                      <div className="relative">
-                        <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <input
-                          type="text"
-                          name="firstName"
-                          value={formData.firstName}
-                          onChange={handleChange}
-                          className="w-full bg-secondary/50 border border-white/10 rounded pl-10 pr-4 py-3 focus:outline-none focus:ring-1 focus:ring-primary"
-                          placeholder="First"
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      <label className="text-sm text-muted-foreground block mb-2">
-                        Last Name
-                      </label>
+                  <div>
+                    <label className="text-sm text-muted-foreground block mb-2">
+                      Full Name
+                    </label>
+                    <div className="relative">
+                      <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                       <input
                         type="text"
-                        name="lastName"
-                        value={formData.lastName}
+                        name="fullName"
+                        value={formData.fullName}
                         onChange={handleChange}
-                        className="w-full bg-secondary/50 border border-white/10 rounded px-4 py-3 focus:outline-none focus:ring-1 focus:ring-primary"
-                        placeholder="Last"
+                        className="w-full bg-secondary/50 border border-white/10 rounded pl-10 pr-4 py-3 focus:outline-none focus:ring-1 focus:ring-primary"
+                        placeholder="Your Name"
                       />
                     </div>
                   </div>
@@ -150,6 +177,7 @@ const Auth = () => {
                       className="w-full bg-secondary/50 border border-white/10 rounded pl-10 pr-12 py-3 focus:outline-none focus:ring-1 focus:ring-primary"
                       placeholder="••••••••"
                       required
+                      minLength={6}
                     />
                     <button
                       type="button"
@@ -160,17 +188,6 @@ const Auth = () => {
                     </button>
                   </div>
                 </div>
-
-                {mode === 'signin' && (
-                  <div className="text-right">
-                    <button
-                      type="button"
-                      className="text-sm text-primary hover:text-primary/80 transition-colors"
-                    >
-                      Forgot password?
-                    </button>
-                  </div>
-                )}
 
                 <Button
                   type="submit"

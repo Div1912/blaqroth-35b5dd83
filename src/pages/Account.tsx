@@ -1,16 +1,21 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Link } from 'react-router-dom';
-import { User, MapPin, Package, Settings, LogOut } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { User, MapPin, Package, LogOut } from 'lucide-react';
 import { AnimatedBackground } from '@/components/AnimatedBackground';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { CartDrawer } from '@/components/CartDrawer';
 import { Button } from '@/components/ui/button';
+import { AddressManager } from '@/components/AddressManager';
+import { useAuth } from '@/hooks/useAuth';
+import { toast } from 'sonner';
 
 const Account = () => {
+  const navigate = useNavigate();
+  const { user, loading, signOut } = useAuth();
   const [scrollProgress, setScrollProgress] = useState(0);
-  const [isLoggedIn] = useState(false); // Will be connected to auth
+  const [activeTab, setActiveTab] = useState<'profile' | 'addresses' | 'orders'>('profile');
 
   useEffect(() => {
     const handleScroll = () => {
@@ -23,7 +28,21 @@ const Account = () => {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  if (!isLoggedIn) {
+  const handleSignOut = async () => {
+    await signOut();
+    toast.success('Signed out successfully');
+    navigate('/');
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <p className="text-muted-foreground">Loading...</p>
+      </div>
+    );
+  }
+
+  if (!user) {
     return (
       <div className="min-h-screen bg-background relative">
         <AnimatedBackground scrollProgress={scrollProgress} />
@@ -60,11 +79,10 @@ const Account = () => {
     );
   }
 
-  const menuItems = [
-    { icon: User, label: 'Profile', href: '/account/profile' },
-    { icon: Package, label: 'Orders', href: '/account/orders' },
-    { icon: MapPin, label: 'Addresses', href: '/account/addresses' },
-    { icon: Settings, label: 'Settings', href: '/account/settings' },
+  const tabs = [
+    { id: 'profile', label: 'Profile', icon: User },
+    { id: 'addresses', label: 'Addresses', icon: MapPin },
+    { id: 'orders', label: 'Orders', icon: Package },
   ];
 
   return (
@@ -81,41 +99,86 @@ const Account = () => {
             transition={{ duration: 0.8 }}
             className="max-w-4xl mx-auto"
           >
-            <h1 className="font-display text-4xl md:text-5xl tracking-wider mb-12">
-              My Account
-            </h1>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {menuItems.map((item, index) => (
-                <motion.div
-                  key={item.label}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.1 }}
-                >
-                  <Link to={item.href}>
-                    <div className="glass-panel p-8 hover-lift flex items-center gap-6">
-                      <item.icon className="h-8 w-8 text-primary" />
-                      <span className="font-display text-xl tracking-wider">
-                        {item.label}
-                      </span>
-                    </div>
-                  </Link>
-                </motion.div>
-              ))}
-            </div>
-
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.4 }}
-              className="mt-12"
-            >
-              <Button variant="glass" size="lg" className="w-full md:w-auto">
+            <div className="flex items-center justify-between mb-12">
+              <h1 className="font-display text-4xl md:text-5xl tracking-wider">
+                My Account
+              </h1>
+              <Button variant="glass" onClick={handleSignOut}>
                 <LogOut className="h-4 w-4 mr-2" />
                 Sign Out
               </Button>
-            </motion.div>
+            </div>
+
+            {/* Tabs */}
+            <div className="glass-panel p-2 mb-8 flex gap-2">
+              {tabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id as typeof activeTab)}
+                  className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded transition-all ${
+                    activeTab === tab.id
+                      ? 'bg-primary/20 text-primary'
+                      : 'hover:bg-white/5 text-muted-foreground'
+                  }`}
+                >
+                  <tab.icon className="h-4 w-4" />
+                  <span className="hidden sm:inline">{tab.label}</span>
+                </button>
+              ))}
+            </div>
+
+            {/* Tab Content */}
+            {activeTab === 'profile' && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="glass-panel p-8"
+              >
+                <h2 className="font-display text-2xl tracking-wider mb-6">Profile Details</h2>
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-sm text-muted-foreground block mb-1">Email</label>
+                    <p className="text-foreground">{user.email}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm text-muted-foreground block mb-1">Member Since</label>
+                    <p className="text-foreground">
+                      {new Date(user.created_at).toLocaleDateString('en-IN', {
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric',
+                      })}
+                    </p>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
+            {activeTab === 'addresses' && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+              >
+                <AddressManager />
+              </motion.div>
+            )}
+
+            {activeTab === 'orders' && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="glass-panel p-8 text-center"
+              >
+                <Package className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                <h2 className="font-display text-2xl tracking-wider mb-2">No Orders Yet</h2>
+                <p className="text-muted-foreground mb-6">
+                  When you place an order, it will appear here.
+                </p>
+                <Button variant="glass-gold" asChild>
+                  <Link to="/shop">Start Shopping</Link>
+                </Button>
+              </motion.div>
+            )}
           </motion.div>
         </div>
       </main>
