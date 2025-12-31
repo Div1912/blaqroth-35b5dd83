@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
-import { User, MapPin, Package, LogOut, Heart, Edit2, Save, X } from 'lucide-react';
+import { User, MapPin, Package, LogOut, Heart, Edit2, Save, X, ChevronDown, ChevronUp } from 'lucide-react';
 import { AnimatedBackground } from '@/components/AnimatedBackground';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
@@ -16,12 +16,30 @@ import { formatPrice } from '@/lib/formatCurrency';
 import { countryCodes } from '@/lib/countryCodes';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { format } from 'date-fns';
 
 interface CustomerProfile {
   full_name: string | null;
   email: string;
   phone: string | null;
   phone_country_code: string | null;
+}
+
+interface Order {
+  id: string;
+  order_number: string;
+  status: string;
+  total: number;
+  created_at: string;
+  payment_method: string;
+}
+
+interface OrderItem {
+  id: string;
+  product_name: string;
+  quantity: number;
+  price: number;
+  variant_details: string | null;
 }
 
 const Account = () => {
@@ -40,6 +58,12 @@ const Account = () => {
     phone_country_code: '+91',
   });
   const [savingProfile, setSavingProfile] = useState(false);
+  
+  // Orders state
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [ordersLoading, setOrdersLoading] = useState(false);
+  const [expandedOrder, setExpandedOrder] = useState<string | null>(null);
+  const [orderItems, setOrderItems] = useState<Record<string, OrderItem[]>>({});
   
   // Wishlist
   const { items: wishlistItems, removeItem: removeFromWishlist } = useWishlistStore();
@@ -60,8 +84,36 @@ const Account = () => {
   useEffect(() => {
     if (user) {
       fetchProfile();
+      fetchOrders();
     }
   }, [user]);
+
+  const fetchOrders = async () => {
+    if (!user) return;
+    setOrdersLoading(true);
+    const { data } = await supabase
+      .from('orders')
+      .select('*')
+      .eq('customer_id', user.id)
+      .order('created_at', { ascending: false });
+    setOrders(data || []);
+    setOrdersLoading(false);
+  };
+
+  const toggleOrderDetails = async (orderId: string) => {
+    if (expandedOrder === orderId) {
+      setExpandedOrder(null);
+      return;
+    }
+    setExpandedOrder(orderId);
+    if (!orderItems[orderId]) {
+      const { data } = await supabase
+        .from('order_items')
+        .select('*')
+        .eq('order_id', orderId);
+      setOrderItems(prev => ({ ...prev, [orderId]: data || [] }));
+    }
+  };
 
   const fetchProfile = async () => {
     if (!user) return;
@@ -397,19 +449,53 @@ const Account = () => {
             )}
 
             {activeTab === 'orders' && (
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="glass-panel p-8 text-center"
-              >
-                <Package className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                <h2 className="font-display text-2xl tracking-wider mb-2">No Orders Yet</h2>
-                <p className="text-muted-foreground mb-6">
-                  When you place an order, it will appear here.
-                </p>
-                <Button variant="glass-gold" asChild>
-                  <Link to="/shop">Start Shopping</Link>
-                </Button>
+              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+                {ordersLoading ? (
+                  <div className="glass-panel p-8 text-center"><p>Loading orders...</p></div>
+                ) : orders.length === 0 ? (
+                  <div className="glass-panel p-8 text-center">
+                    <Package className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                    <h2 className="font-display text-2xl tracking-wider mb-2">No Orders Yet</h2>
+                    <p className="text-muted-foreground mb-6">When you place an order, it will appear here.</p>
+                    <Button variant="glass-gold" asChild><Link to="/shop">Start Shopping</Link></Button>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {orders.map((order) => (
+                      <div key={order.id} className="glass-panel overflow-hidden">
+                        <button onClick={() => toggleOrderDetails(order.id)} className="w-full p-4 flex items-center justify-between hover:bg-white/5 transition-colors">
+                          <div className="flex items-center gap-4">
+                            <Package className="h-5 w-5 text-primary" />
+                            <div className="text-left">
+                              <p className="font-medium">{order.order_number}</p>
+                              <p className="text-sm text-muted-foreground">{format(new Date(order.created_at), 'MMM dd, yyyy')}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-4">
+                            <span className={`px-2 py-1 rounded-full text-xs ${
+                              order.status === 'delivered' ? 'bg-green-100 text-green-700' :
+                              order.status === 'shipped' ? 'bg-blue-100 text-blue-700' :
+                              order.status === 'processing' ? 'bg-yellow-100 text-yellow-700' :
+                              'bg-gray-100 text-gray-700'
+                            }`}>{order.status}</span>
+                            <span className="font-medium">{formatPrice(order.total)}</span>
+                            {expandedOrder === order.id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                          </div>
+                        </button>
+                        {expandedOrder === order.id && orderItems[order.id] && (
+                          <div className="border-t border-white/10 p-4 space-y-2">
+                            {orderItems[order.id].map((item) => (
+                              <div key={item.id} className="flex justify-between text-sm">
+                                <span>{item.product_name} {item.variant_details && `(${item.variant_details})`} × {item.quantity}</span>
+                                <span>{formatPrice(item.price * item.quantity)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </motion.div>
             )}
           </motion.div>
