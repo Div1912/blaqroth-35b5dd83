@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
-import { User, MapPin, Package, LogOut, Heart, ArrowLeft, Edit2, Save, X } from 'lucide-react';
+import { User, MapPin, Package, LogOut, Heart, Edit2, Save, X } from 'lucide-react';
 import { AnimatedBackground } from '@/components/AnimatedBackground';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { CartDrawer } from '@/components/CartDrawer';
 import { Button } from '@/components/ui/button';
 import { AddressManager } from '@/components/AddressManager';
+import { BackButton } from '@/components/BackButton';
 import { useAuth } from '@/hooks/useAuth';
 import { useWishlistStore } from '@/store/wishlistStore';
 import { products } from '@/data/products';
@@ -192,13 +193,7 @@ const Account = () => {
             animate={{ opacity: 1, x: 0 }}
             className="mb-8"
           >
-            <button
-              onClick={() => navigate(-1)}
-              className="inline-flex items-center text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back
-            </button>
+            <BackButton fallbackTo="/" />
           </motion.div>
 
           <motion.div

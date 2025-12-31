@@ -1,14 +1,12 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
-import { ArrowLeft } from 'lucide-react';
 import { AnimatedBackground } from '@/components/AnimatedBackground';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { CartDrawer } from '@/components/CartDrawer';
+import { BackButton } from '@/components/BackButton';
 
 const About = () => {
-  const navigate = useNavigate();
   const [scrollProgress, setScrollProgress] = useState(0);
 
   useEffect(() => {
@@ -36,13 +34,7 @@ const About = () => {
             animate={{ opacity: 1, x: 0 }}
             className="mb-8"
           >
-            <button
-              onClick={() => navigate(-1)}
-              className="inline-flex items-center text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back
-            </button>
+            <BackButton fallbackTo="/" />
           </motion.div>
           {/* Page Header */}
           <motion.div

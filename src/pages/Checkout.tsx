@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Check, MapPin, CreditCard, Package, Truck, Plus, ChevronDown } from 'lucide-react';
+import { Check, MapPin, CreditCard, Package, Truck, Plus } from 'lucide-react';
 import { AnimatedBackground } from '@/components/AnimatedBackground';
 import { Header } from '@/components/Header';
 import { Button } from '@/components/ui/button';
+import { BackButton } from '@/components/BackButton';
 import { useCartStore } from '@/store/cartStore';
 import { useAuth } from '@/hooks/useAuth';
 import { formatPrice } from '@/lib/formatCurrency';
@@ -94,9 +95,29 @@ const Checkout = () => {
     }
   }, [user]);
 
+  const prefillFromProfile = async () => {
+    if (!user) return;
+
+    const { data } = await supabase
+      .from('customers')
+      .select('full_name, phone, phone_country_code')
+      .eq('id', user.id)
+      .single();
+
+    if (!data) return;
+
+    setFormData((prev) => ({
+      ...prev,
+      full_name: prev.full_name || data.full_name || '',
+      phone:
+        prev.phone ||
+        (data.phone ? `${data.phone_country_code || '+91'} ${data.phone}` : ''),
+    }));
+  };
+
   const fetchAddresses = async () => {
     if (!user) return;
-    
+
     setLoadingAddresses(true);
     const { data, error } = await supabase
       .from('addresses')
@@ -106,14 +127,21 @@ const Checkout = () => {
 
     if (error) {
       console.error('Failed to load addresses:', error);
+      setAddresses([]);
+      setSelectedAddressId(null);
+      setShowAddressForm(true);
+      prefillFromProfile();
     } else {
       setAddresses(data || []);
       // Auto-select default address or first address
-      const defaultAddr = data?.find(a => a.is_default) || data?.[0];
+      const defaultAddr = data?.find((a) => a.is_default) || data?.[0];
       if (defaultAddr) {
         setSelectedAddressId(defaultAddr.id);
+        setShowAddressForm(false);
       } else {
+        setSelectedAddressId(null);
         setShowAddressForm(true);
+        prefillFromProfile();
       }
     }
     setLoadingAddresses(false);
@@ -240,13 +268,7 @@ const Checkout = () => {
         <div className="container mx-auto px-6 md:px-12">
           {currentStep !== 'confirmation' && (
             <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="mb-8">
-              <button
-                onClick={() => navigate(-1)}
-                className="inline-flex items-center text-muted-foreground hover:text-foreground transition-colors"
-              >
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Back
-              </button>
+              <BackButton fallbackTo="/shop" />
             </motion.div>
           )}
 
@@ -290,6 +312,14 @@ const Checkout = () => {
                       <p className="text-muted-foreground">Loading addresses...</p>
                     ) : (
                       <>
+                        {addresses.length === 0 && (
+                          <div className="mb-6 rounded-lg bg-secondary/30 p-4">
+                            <p className="text-sm text-muted-foreground">
+                              No saved address found for <span className="text-foreground">{user.email}</span>. Add one below to continue.
+                            </p>
+                          </div>
+                        )}
+
                         {/* Saved Addresses */}
                         {!showAddressForm && addresses.length > 0 && (
                           <div className="space-y-4 mb-6">
