@@ -62,8 +62,8 @@ const ProductDetail = () => {
 
   // Get images - sorted by display_order
   const images = useMemo(() => {
-    if (!product?.product_images) return [];
-    return [...product.product_images].sort((a, b) => a.display_order - b.display_order);
+    if (!product?.product_images || product.product_images.length === 0) return [];
+    return [...product.product_images].sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0));
   }, [product]);
 
   // Calculate price with offers
