@@ -27,8 +27,11 @@ const AdminDashboard = () => {
         .order('created_at', { ascending: false });
 
       if (orders) {
-        const totalRevenue = orders.reduce((sum, order) => sum + Number(order.total), 0);
-        const pendingOrders = orders.filter(o => o.status === 'pending').length;
+        // Only count revenue from delivered orders
+        const deliveredOrders = orders.filter(o => o.fulfillment_status === 'delivered');
+        const totalRevenue = deliveredOrders.reduce((sum, order) => sum + Number(order.total), 0);
+        // Count orders that are not yet delivered
+        const pendingOrders = orders.filter(o => o.fulfillment_status !== 'delivered').length;
 
         setStats({
           totalProducts: productsCount || 0,
