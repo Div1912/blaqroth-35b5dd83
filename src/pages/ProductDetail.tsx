@@ -435,19 +435,31 @@ const ProductDetail = () => {
               </div>
 
               {/* Coupon Code Display */}
-              {activeCoupons && activeCoupons.length > 0 && (
-                <div className="mb-8 p-4 glass-panel border border-green-500/30 bg-green-500/5">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Ticket className="h-5 w-5 text-green-500" />
-                    <span className="font-medium text-green-500">Save More!</span>
-                  </div>
+              <div className="mb-8 p-4 glass-panel border border-border/30">
+                <div className="flex items-center gap-2 mb-2">
+                  <Ticket className={`h-5 w-5 ${activeCoupons && activeCoupons.length > 0 ? 'text-green-500' : 'text-muted-foreground'}`} />
+                  <span className={`font-medium ${activeCoupons && activeCoupons.length > 0 ? 'text-green-500' : 'text-muted-foreground'}`}>
+                    {activeCoupons && activeCoupons.length > 0 ? 'Save More!' : 'Offers'}
+                  </span>
+                </div>
+                {activeCoupons && activeCoupons.length > 0 ? (
                   <div className="space-y-2">
                     {activeCoupons.slice(0, 2).map((coupon) => (
                       <div key={coupon.id} className="flex items-center gap-2 flex-wrap">
                         <span className="text-sm text-muted-foreground">Use</span>
-                        <code className="px-2 py-1 bg-primary/20 text-primary font-mono font-bold rounded text-sm">
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(coupon.code);
+                            toast.success(`Copied "${coupon.code}" to clipboard!`);
+                          }}
+                          className="px-2 py-1 bg-primary/20 text-primary font-mono font-bold rounded text-sm hover:bg-primary/30 transition-colors cursor-pointer flex items-center gap-1"
+                          title="Click to copy"
+                        >
                           {coupon.code}
-                        </code>
+                          <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                          </svg>
+                        </button>
                         <span className="text-sm text-muted-foreground">during checkout</span>
                         <Badge variant="secondary" className="text-xs">
                           {coupon.discount_type === 'percentage' 
@@ -457,8 +469,10 @@ const ProductDetail = () => {
                       </div>
                     ))}
                   </div>
-                </div>
-              )}
+                ) : (
+                  <p className="text-sm text-muted-foreground">No offers available right now</p>
+                )}
+              </div>
 
               {/* Actions */}
               <div className="flex gap-4 mt-auto">
