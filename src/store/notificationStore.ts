@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { supabase } from '@/integrations/supabase/client';
+import { RealtimeChannel } from '@supabase/supabase-js';
 
 interface Notification {
   id: string;
@@ -15,12 +16,15 @@ interface NotificationStore {
   unreadCount: number;
   isOpen: boolean;
   isLoading: boolean;
+  channel: RealtimeChannel | null;
   fetchNotifications: (userId: string) => Promise<void>;
   markAsRead: (notificationId: string, userId: string) => Promise<void>;
   markAllAsRead: (userId: string) => Promise<void>;
   openNotifications: () => void;
   closeNotifications: () => void;
   toggleNotifications: () => void;
+  subscribeToRealtime: (userId: string) => void;
+  unsubscribeFromRealtime: () => void;
 }
 
 export const useNotificationStore = create<NotificationStore>((set, get) => ({
@@ -28,6 +32,7 @@ export const useNotificationStore = create<NotificationStore>((set, get) => ({
   unreadCount: 0,
   isOpen: false,
   isLoading: false,
+  channel: null,
 
   fetchNotifications: async (userId: string) => {
     set({ isLoading: true });
@@ -48,6 +53,62 @@ export const useNotificationStore = create<NotificationStore>((set, get) => ({
       console.error('Failed to fetch notifications:', error);
     } finally {
       set({ isLoading: false });
+    }
+  },
+
+  subscribeToRealtime: (userId: string) => {
+    const existingChannel = get().channel;
+    if (existingChannel) {
+      supabase.removeChannel(existingChannel);
+    }
+
+    const channel = supabase
+      .channel('notifications-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'notifications',
+          filter: `customer_id=eq.${userId}`,
+        },
+        (payload) => {
+          const newNotification = payload.new as Notification;
+          set((state) => ({
+            notifications: [newNotification, ...state.notifications].slice(0, 20),
+            unreadCount: state.unreadCount + 1,
+          }));
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'notifications',
+          filter: `customer_id=eq.${userId}`,
+        },
+        (payload) => {
+          const updatedNotification = payload.new as Notification;
+          set((state) => {
+            const updated = state.notifications.map((n) =>
+              n.id === updatedNotification.id ? updatedNotification : n
+            );
+            const unreadCount = updated.filter((n) => !n.is_read).length;
+            return { notifications: updated, unreadCount };
+          });
+        }
+      )
+      .subscribe();
+
+    set({ channel });
+  },
+
+  unsubscribeFromRealtime: () => {
+    const channel = get().channel;
+    if (channel) {
+      supabase.removeChannel(channel);
+      set({ channel: null });
     }
   },
 

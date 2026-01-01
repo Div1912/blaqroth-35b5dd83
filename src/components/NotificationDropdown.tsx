@@ -18,13 +18,20 @@ export function NotificationDropdown() {
     markAllAsRead,
     toggleNotifications,
     closeNotifications,
+    subscribeToRealtime,
+    unsubscribeFromRealtime,
   } = useNotificationStore();
 
   useEffect(() => {
     if (user) {
       fetchNotifications(user.id);
+      subscribeToRealtime(user.id);
+      
+      return () => {
+        unsubscribeFromRealtime();
+      };
     }
-  }, [user, fetchNotifications]);
+  }, [user, fetchNotifications, subscribeToRealtime, unsubscribeFromRealtime]);
 
   const getIcon = (type: string) => {
     switch (type) {

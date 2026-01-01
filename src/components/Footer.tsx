@@ -76,7 +76,7 @@ export function Footer() {
         {/* Bottom Bar */}
         <div className="flex flex-col md:flex-row items-center justify-between mt-16 pt-8 border-t border-white/5">
           <p className="text-muted-foreground text-sm">
-            © 2024 BLAQROTH. All rights reserved.
+            © 2026 BLAQROTH. All rights reserved.
           </p>
           
           <div className="flex items-center space-x-6 mt-4 md:mt-0">
