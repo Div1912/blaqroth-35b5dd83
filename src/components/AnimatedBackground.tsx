@@ -1,24 +1,41 @@
-import { useRef, useMemo } from 'react';
+import { useRef, useMemo, useState, useEffect } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { MeshDistortMaterial, Float, Environment } from '@react-three/drei';
 import * as THREE from 'three';
 
+// Detect if device is mobile/low-performance
+const useIsMobile = () => {
+  const [isMobile, setIsMobile] = useState(false);
+  
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768 || 'ontouchstart' in window);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+  
+  return isMobile;
+};
+
 interface AnimatedShapeProps {
   scrollProgress: number;
   colorPhase: number;
+  simplified?: boolean;
 }
 
 // Main focal torus knot with metallic gold finish
-function AnimatedShape({ scrollProgress, colorPhase }: AnimatedShapeProps) {
+function AnimatedShape({ scrollProgress, colorPhase, simplified = false }: AnimatedShapeProps) {
   const meshRef = useRef<THREE.Mesh>(null);
   
   const color = useMemo(() => {
     const colors = [
-      new THREE.Color('#d4af37'), // Rich Gold
-      new THREE.Color('#c9a962'), // Champagne Gold
-      new THREE.Color('#b8860b'), // Dark Goldenrod
-      new THREE.Color('#daa520'), // Goldenrod
-      new THREE.Color('#d4af37'), // Back to gold
+      new THREE.Color('#d4af37'),
+      new THREE.Color('#c9a962'),
+      new THREE.Color('#b8860b'),
+      new THREE.Color('#daa520'),
+      new THREE.Color('#d4af37'),
     ];
 
     const phase = Number.isFinite(colorPhase) ? Math.min(Math.max(colorPhase, 0), 1) : 0;
@@ -34,14 +51,16 @@ function AnimatedShape({ scrollProgress, colorPhase }: AnimatedShapeProps) {
     if (!meshRef.current) return;
     
     const time = state.clock.getElapsedTime();
-    const rotationSpeed = 0.12 - scrollProgress * 0.08;
+    const rotationSpeed = simplified ? 0.08 : 0.12 - scrollProgress * 0.08;
     
     meshRef.current.rotation.x = time * rotationSpeed + scrollProgress * 0.5;
     meshRef.current.rotation.y = time * rotationSpeed * 0.7 + scrollProgress * 0.3;
-    meshRef.current.rotation.z = Math.sin(time * 0.15) * 0.15;
     
-    meshRef.current.position.y = Math.sin(time * 0.25) * 0.3;
-    meshRef.current.position.x = Math.cos(time * 0.1) * 0.2;
+    if (!simplified) {
+      meshRef.current.rotation.z = Math.sin(time * 0.15) * 0.15;
+      meshRef.current.position.y = Math.sin(time * 0.25) * 0.3;
+      meshRef.current.position.x = Math.cos(time * 0.1) * 0.2;
+    }
     
     const baseScale = 2.2 - scrollProgress * 0.4;
     meshRef.current.scale.setScalar(baseScale);
@@ -49,15 +68,19 @@ function AnimatedShape({ scrollProgress, colorPhase }: AnimatedShapeProps) {
 
   return (
     <mesh ref={meshRef} position={[0, 0, 0]}>
-      <torusKnotGeometry args={[1, 0.35, 256, 48, 2, 3]} />
+      {simplified ? (
+        <torusKnotGeometry args={[1, 0.35, 64, 16, 2, 3]} />
+      ) : (
+        <torusKnotGeometry args={[1, 0.35, 256, 48, 2, 3]} />
+      )}
       <MeshDistortMaterial
         color={color}
         attach="material"
-        distort={0.25 - scrollProgress * 0.12}
-        speed={1.8 - scrollProgress * 0.6}
+        distort={simplified ? 0.1 : 0.25 - scrollProgress * 0.12}
+        speed={simplified ? 0.8 : 1.8 - scrollProgress * 0.6}
         roughness={0.15}
         metalness={0.95}
-        envMapIntensity={2}
+        envMapIntensity={simplified ? 1 : 2}
       />
     </mesh>
   );
@@ -161,8 +184,31 @@ interface AnimatedBackgroundProps {
 }
 
 export function AnimatedBackground({ scrollProgress }: AnimatedBackgroundProps) {
+  const isMobile = useIsMobile();
   const safeScrollProgress = Number.isFinite(scrollProgress) ? Math.min(Math.max(scrollProgress, 0), 1) : 0;
   const colorPhase = (safeScrollProgress * 2) % 1;
+  
+  // On mobile, show a simplified static gradient instead
+  if (isMobile) {
+    return (
+      <div className="fixed inset-0 -z-10">
+        <Canvas
+          camera={{ position: [0, 0, 7], fov: 50 }}
+          dpr={1}
+          gl={{ antialias: false, alpha: true, powerPreference: 'low-power' }}
+          frameloop="demand"
+        >
+          <ambientLight intensity={0.5} />
+          <directionalLight position={[5, 5, 5]} intensity={1} color="#c9a962" />
+          <Environment preset="city" />
+          <AnimatedShape scrollProgress={safeScrollProgress} colorPhase={colorPhase} simplified />
+        </Canvas>
+        
+        <div className="absolute inset-0 bg-gradient-to-b from-background/10 via-transparent to-background/70 pointer-events-none" />
+        <div className="absolute inset-0 bg-gradient-to-r from-background/20 via-transparent to-background/20 pointer-events-none" />
+      </div>
+    );
+  }
   
   return (
     <div className="fixed inset-0 -z-10">
@@ -171,7 +217,6 @@ export function AnimatedBackground({ scrollProgress }: AnimatedBackgroundProps) 
         dpr={[1, 2]}
         gl={{ antialias: true, alpha: true }}
       >
-        {/* Enhanced lighting for metallic materials */}
         <ambientLight intensity={0.4} />
         <directionalLight position={[10, 10, 5]} intensity={1.5} color="#ffffff" />
         <directionalLight position={[-10, -5, -5]} intensity={0.8} color="#c9a962" />
@@ -185,31 +230,24 @@ export function AnimatedBackground({ scrollProgress }: AnimatedBackgroundProps) 
           color="#c9a962"
         />
         
-        {/* Environment for reflections */}
         <Environment preset="city" />
         
-        {/* Main animated shape */}
         <AnimatedShape scrollProgress={safeScrollProgress} colorPhase={colorPhase} />
         
-        {/* Floating accent elements */}
         <FloatingRing position={[-3.5, 2, -2]} size={0.6} speed={0.3} />
         <FloatingRing position={[3.5, -1.5, -3]} size={0.45} speed={0.25} />
         <FloatingRing position={[2, 2.5, -2.5]} size={0.35} speed={0.35} />
         
-        {/* Floating diamonds */}
         <FloatingDiamond position={[-2.5, -2, -1]} size={0.2} delay={0} />
         <FloatingDiamond position={[3, 1.5, -1.5]} size={0.15} delay={1} />
         <FloatingDiamond position={[-1.5, 2.5, -2]} size={0.18} delay={2} />
         <FloatingDiamond position={[1.5, -2.5, -1.5]} size={0.12} delay={3} />
         
-        {/* Particle field for depth */}
         <ParticleField />
         
-        {/* Subtle fog for atmosphere */}
         <fog attach="fog" args={['#0a0a0a', 6, 18]} />
       </Canvas>
       
-      {/* Gradient overlays for better text readability */}
       <div className="absolute inset-0 bg-gradient-to-b from-background/10 via-transparent to-background/70 pointer-events-none" />
       <div className="absolute inset-0 bg-gradient-to-r from-background/20 via-transparent to-background/20 pointer-events-none" />
     </div>
