@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Minus, Plus, Heart, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import { ArrowLeft, Minus, Plus, Heart, ChevronLeft, ChevronRight, Loader2, Ticket } from 'lucide-react';
 import { AnimatedBackground } from '@/components/AnimatedBackground';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
@@ -13,6 +13,7 @@ import { useProduct, useActiveOffers, calculateDiscountedPrice } from '@/hooks/u
 import { useCartStore } from '@/store/cartStore';
 import { useWishlistStore } from '@/store/wishlistStore';
 import { useAuth } from '@/hooks/useAuth';
+import { useActiveCoupons } from '@/hooks/useCoupons';
 import { formatPrice } from '@/lib/formatCurrency';
 import { toast } from 'sonner';
 
@@ -26,6 +27,7 @@ const ProductDetail = () => {
   
   const { data: product, isLoading } = useProduct(id || '');
   const { data: offers } = useActiveOffers();
+  const { data: activeCoupons } = useActiveCoupons();
   const { addItem, openCart } = useCartStore();
   const { user } = useAuth();
   const { items: wishlistItems, addItem: addToWishlist, removeItem: removeFromWishlist } = useWishlistStore();
@@ -431,6 +433,32 @@ const ProductDetail = () => {
                   </button>
                 </div>
               </div>
+
+              {/* Coupon Code Display */}
+              {activeCoupons && activeCoupons.length > 0 && (
+                <div className="mb-8 p-4 glass-panel border border-green-500/30 bg-green-500/5">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Ticket className="h-5 w-5 text-green-500" />
+                    <span className="font-medium text-green-500">Save More!</span>
+                  </div>
+                  <div className="space-y-2">
+                    {activeCoupons.slice(0, 2).map((coupon) => (
+                      <div key={coupon.id} className="flex items-center gap-2 flex-wrap">
+                        <span className="text-sm text-muted-foreground">Use</span>
+                        <code className="px-2 py-1 bg-primary/20 text-primary font-mono font-bold rounded text-sm">
+                          {coupon.code}
+                        </code>
+                        <span className="text-sm text-muted-foreground">during checkout</span>
+                        <Badge variant="secondary" className="text-xs">
+                          {coupon.discount_type === 'percentage' 
+                            ? `${coupon.discount_value}% OFF` 
+                            : `${formatPrice(coupon.discount_value)} OFF`}
+                        </Badge>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Actions */}
               <div className="flex gap-4 mt-auto">
