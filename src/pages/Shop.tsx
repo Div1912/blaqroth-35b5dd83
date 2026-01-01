@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { useSearchParams } from 'react-router-dom';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Search, X } from 'lucide-react';
 import { AnimatedBackground } from '@/components/AnimatedBackground';
 import { ShopHeroBackground } from '@/components/ShopHeroBackground';
 import { Header } from '@/components/Header';
@@ -10,13 +10,16 @@ import { CartDrawer } from '@/components/CartDrawer';
 import { DBProductCard } from '@/components/DBProductCard';
 import { ShopFilters } from '@/components/ShopFilters';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { BackButton } from '@/components/BackButton';
 import { useProducts, useCategories, useActiveOffers } from '@/hooks/useProducts';
+import { useActiveCoupons } from '@/hooks/useCoupons';
 import { useSmoothScroll } from '@/hooks/useSmoothScroll';
 
 const Shop = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [scrollProgress, setScrollProgress] = useState(0);
+  const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedCollection, setSelectedCollection] = useState<string | null>(
     searchParams.get('collection')
@@ -30,6 +33,7 @@ const Shop = () => {
   const { data: products, isLoading: productsLoading } = useProducts();
   const { data: categories } = useCategories();
   const { data: offers } = useActiveOffers();
+  const { data: coupons } = useActiveCoupons();
 
   // Calculate max price from products
   const maxPrice = useMemo(() => {
@@ -76,10 +80,20 @@ const Shop = () => {
     setSelectedCategory(null);
     setPriceRange([0, maxPrice]);
     setSortBy('newest');
+    setSearchQuery('');
   };
 
   const filteredProducts = useMemo(() => {
     return (products || [])
+      .filter((p) => {
+        if (!searchQuery) return true;
+        const query = searchQuery.toLowerCase();
+        return (
+          p.name.toLowerCase().includes(query) ||
+          p.description?.toLowerCase().includes(query) ||
+          p.category?.name?.toLowerCase().includes(query)
+        );
+      })
       .filter((p) => !selectedCategory || p.category?.slug === selectedCategory)
       .filter((p) => p.price >= priceRange[0] && p.price <= priceRange[1])
       .sort((a, b) => {
@@ -87,12 +101,13 @@ const Shop = () => {
         if (sortBy === 'price-desc') return b.price - a.price;
         return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
       });
-  }, [products, selectedCategory, priceRange, sortBy]);
+  }, [products, searchQuery, selectedCategory, priceRange, sortBy]);
 
   const activeFiltersCount = 
     (selectedCategory ? 1 : 0) + 
     (selectedCollection ? 1 : 0) + 
-    (priceRange[0] > 0 || priceRange[1] < maxPrice ? 1 : 0);
+    (priceRange[0] > 0 || priceRange[1] < maxPrice ? 1 : 0) +
+    (searchQuery ? 1 : 0);
 
   return (
     <div className="min-h-screen bg-background relative">
@@ -174,6 +189,33 @@ const Shop = () => {
 
             {/* Products Grid */}
             <div className="lg:col-span-3">
+              {/* Search Bar */}
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="mb-6"
+              >
+                <div className="relative">
+                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                  <Input
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search products..."
+                    className="pl-12 pr-10 h-12 bg-secondary/30 border-border/50 focus:border-primary/50"
+                  />
+                  {searchQuery && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8"
+                      onClick={() => setSearchQuery('')}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
+              </motion.div>
+
               {/* Results Count */}
               <motion.div
                 initial={{ opacity: 0 }}
@@ -205,7 +247,7 @@ const Shop = () => {
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6 md:gap-8">
                   {filteredProducts.map((product, index) => (
-                    <DBProductCard key={product.id} product={product} offers={offers || []} index={index} />
+                    <DBProductCard key={product.id} product={product} offers={offers || []} coupons={coupons || []} index={index} />
                   ))}
                 </div>
               )}

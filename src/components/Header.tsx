@@ -8,7 +8,7 @@ import { useWishlistStore } from '@/store/wishlistStore';
 import { useAuth } from '@/hooks/useAuth';
 import { useAdmin } from '@/hooks/useAdmin';
 import { NotificationDropdown } from '@/components/NotificationDropdown';
-import { ThemeToggle } from '@/components/ThemeToggle';
+
 const navLinks = [
   { name: 'Collections', href: '/collections' },
   { name: 'Shop', href: '/shop' },
@@ -55,7 +55,6 @@ export function Header() {
             </nav>
 
             <div className="flex items-center space-x-2 md:space-x-4">
-              <ThemeToggle />
               
               {isAdmin && (
                 <Link to="/admin">
