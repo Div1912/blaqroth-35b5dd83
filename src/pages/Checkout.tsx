@@ -6,6 +6,7 @@ import { AnimatedBackground } from '@/components/AnimatedBackground';
 import { Header } from '@/components/Header';
 import { Button } from '@/components/ui/button';
 import { BackButton } from '@/components/BackButton';
+import { CouponInput, AppliedCoupon } from '@/components/CouponInput';
 import { useCartStore, DBCartItem } from '@/store/cartStore';
 import { useAuth } from '@/hooks/useAuth';
 import { useGlobalLoader } from '@/hooks/useGlobalLoader';
@@ -62,8 +63,11 @@ const Checkout = () => {
   const { items, getTotal, clearCart } = useCartStore();
   const [orderNumber, setOrderNumber] = useState<string>('');
   const [placingOrder, setPlacingOrder] = useState(false);
+  const [appliedCoupon, setAppliedCoupon] = useState<AppliedCoupon | null>(null);
   const total = getTotal();
-  const shipping = total > 50000 ? 0 : 500;
+  const couponDiscount = appliedCoupon?.discountAmount || 0;
+  const subtotalAfterCoupon = total - couponDiscount;
+  const shipping = subtotalAfterCoupon >= 500 ? 0 : 500;
 
   // Address state
   const [addresses, setAddresses] = useState<Address[]>([]);
@@ -262,7 +266,7 @@ const Checkout = () => {
 
       const newOrderNumber = generateOrderNumber();
       const subtotal = getTotal();
-      const orderTotal = subtotal + shipping;
+      const orderTotal = subtotalAfterCoupon + shipping;
 
       // Create order
       const { data: order, error: orderError } = await supabase
@@ -747,8 +751,20 @@ const Checkout = () => {
                   </div>
                   <div className="border-t border-white/10 pt-6 space-y-3">
                     <div className="flex justify-between text-muted-foreground"><span>Subtotal</span><span>{formatPrice(total)}</span></div>
+                    
+                    {/* Coupon Input */}
+                    <CouponInput 
+                      subtotal={total} 
+                      appliedCoupon={appliedCoupon} 
+                      onApply={setAppliedCoupon} 
+                      onRemove={() => setAppliedCoupon(null)} 
+                    />
+                    
+                    {appliedCoupon && (
+                      <div className="flex justify-between text-green-500"><span>Discount</span><span>-{formatPrice(couponDiscount)}</span></div>
+                    )}
                     <div className="flex justify-between text-muted-foreground"><span>Shipping</span><span>{shipping === 0 ? 'Free' : formatPrice(shipping)}</span></div>
-                    <div className="flex justify-between text-lg font-display pt-3 border-t border-white/10"><span>Total</span><span>{formatPrice(total + shipping)}</span></div>
+                    <div className="flex justify-between text-lg font-display pt-3 border-t border-white/10"><span>Total</span><span>{formatPrice(subtotalAfterCoupon + shipping)}</span></div>
                   </div>
                   {shipping > 0 && <p className="text-muted-foreground text-sm mt-4">Free shipping on orders over ₹500</p>}
                 </motion.div>
