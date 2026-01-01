@@ -232,6 +232,57 @@ export type Database = {
         }
         Relationships: []
       }
+      coupons: {
+        Row: {
+          code: string
+          created_at: string | null
+          description: string | null
+          discount_type: string
+          discount_value: number
+          end_date: string
+          id: string
+          is_active: boolean | null
+          max_discount: number | null
+          min_order_value: number | null
+          start_date: string
+          updated_at: string | null
+          usage_limit: number | null
+          used_count: number | null
+        }
+        Insert: {
+          code: string
+          created_at?: string | null
+          description?: string | null
+          discount_type: string
+          discount_value: number
+          end_date: string
+          id?: string
+          is_active?: boolean | null
+          max_discount?: number | null
+          min_order_value?: number | null
+          start_date: string
+          updated_at?: string | null
+          usage_limit?: number | null
+          used_count?: number | null
+        }
+        Update: {
+          code?: string
+          created_at?: string | null
+          description?: string | null
+          discount_type?: string
+          discount_value?: number
+          end_date?: string
+          id?: string
+          is_active?: boolean | null
+          max_discount?: number | null
+          min_order_value?: number | null
+          start_date?: string
+          updated_at?: string | null
+          usage_limit?: number | null
+          used_count?: number | null
+        }
+        Relationships: []
+      }
       customers: {
         Row: {
           created_at: string | null
@@ -670,6 +721,60 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "product_images_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      product_reviews: {
+        Row: {
+          comment: string | null
+          created_at: string | null
+          customer_id: string
+          id: string
+          is_approved: boolean | null
+          is_verified_purchase: boolean | null
+          product_id: string
+          rating: number
+          title: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          comment?: string | null
+          created_at?: string | null
+          customer_id: string
+          id?: string
+          is_approved?: boolean | null
+          is_verified_purchase?: boolean | null
+          product_id: string
+          rating: number
+          title?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          comment?: string | null
+          created_at?: string | null
+          customer_id?: string
+          id?: string
+          is_approved?: boolean | null
+          is_verified_purchase?: boolean | null
+          product_id?: string
+          rating?: number
+          title?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_reviews_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_reviews_product_id_fkey"
             columns: ["product_id"]
             isOneToOne: false
             referencedRelation: "products"

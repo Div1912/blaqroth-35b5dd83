@@ -175,3 +175,8 @@
 ::-webkit-scrollbar-thumb:hover {
   background: hsl(38 45% 55%);
 }
+
+/* Hide lovable badge globally */
+#lovable-badge {
+  display: none !important;
+}
