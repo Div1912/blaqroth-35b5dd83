@@ -1,13 +1,14 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { useSearchParams } from 'react-router-dom';
-import { Filter, X, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { AnimatedBackground } from '@/components/AnimatedBackground';
 import { ShopHeroBackground } from '@/components/ShopHeroBackground';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { CartDrawer } from '@/components/CartDrawer';
 import { DBProductCard } from '@/components/DBProductCard';
+import { ShopFilters } from '@/components/ShopFilters';
 import { Button } from '@/components/ui/button';
 import { BackButton } from '@/components/BackButton';
 import { useProducts, useCategories, useActiveOffers } from '@/hooks/useProducts';
@@ -21,7 +22,7 @@ const Shop = () => {
     searchParams.get('collection')
   );
   const [sortBy, setSortBy] = useState<'newest' | 'price-asc' | 'price-desc'>('newest');
-  const [showFilters, setShowFilters] = useState(false);
+  const [priceRange, setPriceRange] = useState<[number, number]>([0, 100000]);
 
   // Enable smooth scrolling
   useSmoothScroll();
@@ -29,6 +30,19 @@ const Shop = () => {
   const { data: products, isLoading: productsLoading } = useProducts();
   const { data: categories } = useCategories();
   const { data: offers } = useActiveOffers();
+
+  // Calculate max price from products
+  const maxPrice = useMemo(() => {
+    if (!products || products.length === 0) return 100000;
+    return Math.ceil(Math.max(...products.map(p => p.price)) / 1000) * 1000;
+  }, [products]);
+
+  // Initialize price range when products load
+  useEffect(() => {
+    if (maxPrice > 0) {
+      setPriceRange([0, maxPrice]);
+    }
+  }, [maxPrice]);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -58,15 +72,27 @@ const Shop = () => {
     }
   };
 
-  const filteredProducts = (products || [])
-    .filter((p) => !selectedCategory || p.category?.slug === selectedCategory)
-    .sort((a, b) => {
-      if (sortBy === 'price-asc') return a.price - b.price;
-      if (sortBy === 'price-desc') return b.price - a.price;
-      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-    });
+  const handleClearAll = () => {
+    setSelectedCategory(null);
+    setPriceRange([0, maxPrice]);
+    setSortBy('newest');
+  };
 
-  const activeFiltersCount = (selectedCategory ? 1 : 0) + (selectedCollection ? 1 : 0);
+  const filteredProducts = useMemo(() => {
+    return (products || [])
+      .filter((p) => !selectedCategory || p.category?.slug === selectedCategory)
+      .filter((p) => p.price >= priceRange[0] && p.price <= priceRange[1])
+      .sort((a, b) => {
+        if (sortBy === 'price-asc') return a.price - b.price;
+        if (sortBy === 'price-desc') return b.price - a.price;
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      });
+  }, [products, selectedCategory, priceRange, sortBy]);
+
+  const activeFiltersCount = 
+    (selectedCategory ? 1 : 0) + 
+    (selectedCollection ? 1 : 0) + 
+    (priceRange[0] > 0 || priceRange[1] < maxPrice ? 1 : 0);
 
   return (
     <div className="min-h-screen bg-background relative">
@@ -121,157 +147,84 @@ const Shop = () => {
             </motion.div>
           </div>
 
-          {/* Filters */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.2 }}
-            className="glass-panel p-4 md:p-6 mb-12"
-          >
-            <div className="flex flex-col gap-4">
-              {/* Mobile Filter Toggle */}
-              <div className="flex items-center justify-between md:hidden">
-                <Button
-                  variant="glass"
-                  size="sm"
-                  onClick={() => setShowFilters(!showFilters)}
-                  className="flex items-center gap-2"
-                >
-                  <Filter className="h-4 w-4" />
-                  Filters
-                  {activeFiltersCount > 0 && (
-                    <span className="bg-primary text-primary-foreground text-xs px-2 py-0.5 rounded-full">
-                      {activeFiltersCount}
-                    </span>
-                  )}
-                </Button>
-                <select
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
-                  className="bg-secondary/50 border border-white/10 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-                >
-                  <option value="newest">Newest</option>
-                  <option value="price-asc">Price: Low to High</option>
-                  <option value="price-desc">Price: High to Low</option>
-                </select>
-              </div>
+          {/* Main Content Grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+            {/* Sidebar Filters */}
+            <div className="lg:col-span-1">
+              <motion.div
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.6, delay: 0.2 }}
+                className="glass-panel p-6 sticky top-32"
+              >
+                <ShopFilters
+                  categories={categories}
+                  selectedCategory={selectedCategory}
+                  onCategoryChange={setSelectedCategory}
+                  priceRange={priceRange}
+                  onPriceRangeChange={setPriceRange}
+                  maxPrice={maxPrice}
+                  sortBy={sortBy}
+                  onSortChange={setSortBy}
+                  onClearAll={handleClearAll}
+                  activeFiltersCount={activeFiltersCount}
+                />
+              </motion.div>
+            </div>
 
-              {/* Desktop Filters */}
-              <div className={`${showFilters ? 'block' : 'hidden'} md:block`}>
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                  <div className="space-y-4 md:space-y-0 md:flex md:flex-wrap md:gap-4">
-                    {/* Categories */}
-                    <div className="space-y-2">
-                      <label className="text-xs text-muted-foreground uppercase tracking-wider">Category</label>
-                      <div className="flex flex-wrap gap-2">
-                        <Button
-                          variant={selectedCategory === null ? 'glass-gold' : 'glass'}
-                          size="sm"
-                          onClick={() => setSelectedCategory(null)}
-                        >
-                          All
-                        </Button>
-                        {categories?.map((category) => (
-                          <Button
-                            key={category.id}
-                            variant={selectedCategory === category.slug ? 'glass-gold' : 'glass'}
-                            size="sm"
-                            onClick={() => setSelectedCategory(category.slug)}
-                          >
-                            {category.name}
-                          </Button>
-                        ))}
+            {/* Products Grid */}
+            <div className="lg:col-span-3">
+              {/* Results Count */}
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="mb-6 text-muted-foreground"
+              >
+                {productsLoading ? (
+                  <span className="flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Loading products...
+                  </span>
+                ) : (
+                  <span>{filteredProducts.length} {filteredProducts.length === 1 ? 'product' : 'products'}</span>
+                )}
+              </motion.div>
+
+              {productsLoading ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6 md:gap-8">
+                  {[...Array(6)].map((_, i) => (
+                    <div key={i} className="glass-card animate-pulse">
+                      <div className="aspect-[3/4] bg-secondary/20" />
+                      <div className="p-4 space-y-3">
+                        <div className="h-4 bg-secondary/20 rounded w-3/4" />
+                        <div className="h-4 bg-secondary/20 rounded w-1/2" />
                       </div>
                     </div>
-                  </div>
-
-                  {/* Sort - Desktop */}
-                  <div className="hidden md:flex items-center gap-4">
-                    <span className="text-muted-foreground text-sm">Sort by:</span>
-                    <select
-                      value={sortBy}
-                      onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
-                      className="bg-secondary/50 border border-white/10 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-                    >
-                      <option value="newest">Newest</option>
-                      <option value="price-asc">Price: Low to High</option>
-                      <option value="price-desc">Price: High to Low</option>
-                    </select>
-                  </div>
+                  ))}
                 </div>
-              </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6 md:gap-8">
+                  {filteredProducts.map((product, index) => (
+                    <DBProductCard key={product.id} product={product} offers={offers || []} index={index} />
+                  ))}
+                </div>
+              )}
 
-              {/* Active Filters */}
-              {selectedCategory && (
-                <div className="flex flex-wrap items-center gap-2 pt-4 border-t border-white/10">
-                  <span className="text-sm text-muted-foreground">Active filters:</span>
-                  <span className="inline-flex items-center gap-1 px-3 py-1 bg-primary/20 text-primary text-sm rounded-full">
-                    {categories?.find(c => c.slug === selectedCategory)?.name}
-                    <button onClick={() => setSelectedCategory(null)}>
-                      <X className="h-3 w-3" />
-                    </button>
-                  </span>
-                  <button
-                    onClick={() => setSelectedCategory(null)}
-                    className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+              {!productsLoading && filteredProducts.length === 0 && (
+                <div className="text-center py-20">
+                  <p className="text-muted-foreground text-lg mb-4">
+                    No products found with the selected filters.
+                  </p>
+                  <Button
+                    variant="glass"
+                    onClick={handleClearAll}
                   >
-                    Clear all
-                  </button>
+                    Clear Filters
+                  </Button>
                 </div>
               )}
             </div>
-          </motion.div>
-
-          {/* Results Count */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="mb-6 text-muted-foreground"
-          >
-            {productsLoading ? (
-              <span className="flex items-center gap-2">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Loading products...
-              </span>
-            ) : (
-              <span>{filteredProducts.length} {filteredProducts.length === 1 ? 'product' : 'products'}</span>
-            )}
-          </motion.div>
-
-          {/* Products Grid */}
-          {productsLoading ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 md:gap-8">
-              {[...Array(8)].map((_, i) => (
-                <div key={i} className="glass-card animate-pulse">
-                  <div className="aspect-[3/4] bg-secondary/20" />
-                  <div className="p-4 space-y-3">
-                    <div className="h-4 bg-secondary/20 rounded w-3/4" />
-                    <div className="h-4 bg-secondary/20 rounded w-1/2" />
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 md:gap-8">
-              {filteredProducts.map((product, index) => (
-                <DBProductCard key={product.id} product={product} offers={offers || []} index={index} />
-              ))}
-            </div>
-          )}
-
-          {!productsLoading && filteredProducts.length === 0 && (
-            <div className="text-center py-20">
-              <p className="text-muted-foreground text-lg mb-4">
-                No products found with the selected filters.
-              </p>
-              <Button
-                variant="glass"
-                onClick={() => setSelectedCategory(null)}
-              >
-                Clear Filters
-              </Button>
-            </div>
-          )}
+          </div>
         </div>
       </main>
 

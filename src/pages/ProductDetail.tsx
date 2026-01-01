@@ -8,6 +8,7 @@ import { Footer } from '@/components/Footer';
 import { CartDrawer } from '@/components/CartDrawer';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { ProductReviews } from '@/components/ProductReviews';
 import { useProduct, useActiveOffers, calculateDiscountedPrice } from '@/hooks/useProducts';
 import { useCartStore } from '@/store/cartStore';
 import { useWishlistStore } from '@/store/wishlistStore';
@@ -460,6 +461,9 @@ const ProductDetail = () => {
               )}
             </motion.div>
           </div>
+
+          {/* Product Reviews */}
+          <ProductReviews productId={product.id} />
         </div>
       </main>
 
