@@ -2,16 +2,19 @@ import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { CouponBadge } from '@/components/CouponBadge';
 import { formatPrice } from '@/lib/formatCurrency';
 import { DBProduct, calculateDiscountedPrice } from '@/hooks/useProducts';
+import { Coupon } from '@/hooks/useCoupons';
 
 interface DBProductCardProps {
   product: DBProduct;
   offers: any[];
+  coupons?: Coupon[];
   index?: number;
 }
 
-export function DBProductCard({ product, offers, index = 0 }: DBProductCardProps) {
+export function DBProductCard({ product, offers, coupons = [], index = 0 }: DBProductCardProps) {
   // Get primary image or first image
   const primaryImage = product.product_images?.find(img => img.is_primary) || product.product_images?.[0];
   const imageUrl = primaryImage?.url || '/placeholder.svg';
@@ -61,6 +64,9 @@ export function DBProductCard({ product, offers, index = 0 }: DBProductCardProps
                 <Badge variant="secondary">
                   Out of Stock
                 </Badge>
+              )}
+              {coupons.length > 0 && (
+                <CouponBadge coupons={coupons} />
               )}
             </div>
 
