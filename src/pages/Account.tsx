@@ -35,6 +35,12 @@ interface CustomerProfile {
   phone_country_code: string | null;
 }
 
+interface OrderItemSummary {
+  product_name: string;
+  image_url?: string;
+  quantity: number;
+}
+
 interface Order {
   id: string;
   order_number: string;
@@ -48,6 +54,7 @@ interface Order {
   updated_at: string;
   payment_method: string;
   cancellation_reason: string | null;
+  items_summary?: OrderItemSummary[];
 }
 
 interface OrderItem {
@@ -152,7 +159,49 @@ const Account = () => {
       .select('*')
       .eq('customer_id', user.id)
       .order('created_at', { ascending: false });
-    setOrders((data || []) as Order[]);
+    
+    const ordersData = (data || []) as Order[];
+    
+    // Fetch order items with product images for each order
+    if (ordersData.length > 0) {
+      const orderIds = ordersData.map(o => o.id);
+      const { data: allOrderItems } = await supabase
+        .from('order_items')
+        .select('order_id, product_id, product_name, quantity')
+        .in('order_id', orderIds);
+      
+      const productIds = [...new Set((allOrderItems || []).map(i => i.product_id).filter(Boolean))] as string[];
+      
+      let imageMap = new Map<string, string>();
+      if (productIds.length > 0) {
+        const { data: images } = await supabase
+          .from('product_images')
+          .select('product_id, url')
+          .in('product_id', productIds)
+          .eq('is_primary', true);
+        
+        imageMap = new Map((images || []).map(img => [img.product_id, img.url]));
+      }
+      
+      // Group items by order and add image URLs
+      const orderItemsMap = new Map<string, OrderItemSummary[]>();
+      (allOrderItems || []).forEach(item => {
+        if (!orderItemsMap.has(item.order_id)) {
+          orderItemsMap.set(item.order_id, []);
+        }
+        orderItemsMap.get(item.order_id)!.push({
+          product_name: item.product_name,
+          image_url: item.product_id ? imageMap.get(item.product_id) : undefined,
+          quantity: item.quantity,
+        });
+      });
+      
+      ordersData.forEach(order => {
+        order.items_summary = orderItemsMap.get(order.id) || [];
+      });
+    }
+    
+    setOrders(ordersData);
     setOrdersLoading(false);
   };
 
@@ -673,29 +722,72 @@ const Account = () => {
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    {orders.map((order) => (
-                      <div key={order.id} className="glass-panel overflow-hidden">
-                        <button 
-                          onClick={() => viewOrderDetails(order)} 
-                          className="w-full p-4 flex items-center justify-between hover:bg-white/5 transition-colors"
-                        >
-                          <div className="flex items-center gap-4">
-                            <Package className="h-5 w-5 text-primary" />
-                            <div className="text-left">
-                              <p className="font-medium">{order.order_number}</p>
-                              <p className="text-sm text-muted-foreground">{format(new Date(order.created_at), 'MMM dd, yyyy')}</p>
+                    {orders.map((order) => {
+                      const itemCount = order.items_summary?.reduce((sum, i) => sum + i.quantity, 0) || 0;
+                      const displayItems = order.items_summary?.slice(0, 4) || [];
+                      const moreCount = (order.items_summary?.length || 0) - 4;
+                      
+                      return (
+                        <div key={order.id} className="glass-panel overflow-hidden">
+                          <button 
+                            onClick={() => viewOrderDetails(order)} 
+                            className="w-full p-4 hover:bg-white/5 transition-colors"
+                          >
+                            {/* Header Row */}
+                            <div className="flex items-center justify-between mb-3">
+                              <div className="flex items-center gap-3">
+                                <Package className="h-5 w-5 text-primary" />
+                                <div className="text-left">
+                                  <p className="font-medium">{order.order_number}</p>
+                                  <p className="text-sm text-muted-foreground">{format(new Date(order.created_at), 'MMM dd, yyyy')}</p>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                <span className={`px-2 py-1 rounded-full text-xs ${getFulfillmentBadgeColor(order.fulfillment_status || 'pending')}`}>
+                                  {order.fulfillment_status || 'pending'}
+                                </span>
+                                <span className="font-medium">{formatPrice(order.total)}</span>
+                                <ChevronDown className="h-4 w-4" />
+                              </div>
                             </div>
-                          </div>
-                          <div className="flex items-center gap-4">
-                            <span className={`px-2 py-1 rounded-full text-xs ${getFulfillmentBadgeColor(order.fulfillment_status || 'pending')}`}>
-                              {order.fulfillment_status || 'pending'}
-                            </span>
-                            <span className="font-medium">{formatPrice(order.total)}</span>
-                            <ChevronDown className="h-4 w-4" />
-                          </div>
-                        </button>
-                      </div>
-                    ))}
+                            
+                            {/* Product Thumbnails Row */}
+                            <div className="flex items-center gap-3 pt-3 border-t border-white/10">
+                              <div className="flex -space-x-2">
+                                {displayItems.map((item, idx) => (
+                                  <div 
+                                    key={idx} 
+                                    className="w-10 h-10 rounded-md overflow-hidden border-2 border-background bg-muted flex-shrink-0"
+                                    title={item.product_name}
+                                  >
+                                    {item.image_url ? (
+                                      <img 
+                                        src={item.image_url} 
+                                        alt={item.product_name}
+                                        className="w-full h-full object-cover"
+                                      />
+                                    ) : (
+                                      <div className="w-full h-full flex items-center justify-center">
+                                        <Package className="h-4 w-4 text-muted-foreground" />
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
+                                {moreCount > 0 && (
+                                  <div className="w-10 h-10 rounded-md border-2 border-background bg-muted flex items-center justify-center flex-shrink-0">
+                                    <span className="text-xs text-muted-foreground">+{moreCount}</span>
+                                  </div>
+                                )}
+                              </div>
+                              <p className="text-sm text-muted-foreground truncate">
+                                {itemCount} {itemCount === 1 ? 'item' : 'items'}
+                                {displayItems.length > 0 && ` · ${displayItems.map(i => i.product_name).join(', ')}`}
+                              </p>
+                            </div>
+                          </button>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </motion.div>
