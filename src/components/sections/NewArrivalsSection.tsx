@@ -6,12 +6,13 @@ import { Button } from '@/components/ui/button';
 import { formatPrice } from '@/lib/formatCurrency';
 import { useProducts, useActiveOffers, calculateDiscountedPrice } from '@/hooks/useProducts';
 
-export function FeaturedSection() {
+export function NewArrivalsSection() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const { data: products, isLoading } = useProducts();
   const { data: offers } = useActiveOffers();
 
-  const featuredProducts = products?.filter(p => p.is_featured).slice(0, 8) || [];
+  // Get newest products (sorted by created_at)
+  const newArrivals = products?.slice(0, 8) || [];
 
   const scroll = (direction: 'left' | 'right') => {
     if (scrollRef.current) {
@@ -25,7 +26,7 @@ export function FeaturedSection() {
 
   if (isLoading) {
     return (
-      <section className="section-padding bg-background">
+      <section className="section-padding bg-secondary/30">
         <div className="container-editorial">
           <div className="flex gap-6 overflow-hidden">
             {[...Array(4)].map((_, i) => (
@@ -41,21 +42,21 @@ export function FeaturedSection() {
     );
   }
 
-  if (featuredProducts.length === 0) {
+  if (newArrivals.length === 0) {
     return null;
   }
 
   return (
-    <section className="section-padding bg-background">
+    <section className="section-padding bg-secondary/30">
       <div className="container-editorial">
         {/* Header */}
         <div className="flex items-end justify-between mb-8 md:mb-12">
           <div>
-            <p className="subheading mb-2">New Year, New You</p>
-            <h2 className="heading-lg">Featured</h2>
+            <p className="subheading mb-2">Just In</p>
+            <h2 className="heading-lg">New Arrivals</h2>
           </div>
           <Link to="/shop" className="hidden md:flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
-            Shop All <ArrowRight className="h-4 w-4" />
+            View All <ArrowRight className="h-4 w-4" />
           </Link>
         </div>
 
@@ -80,7 +81,7 @@ export function FeaturedSection() {
             ref={scrollRef}
             className="flex gap-4 md:gap-6 overflow-x-auto scrollbar-hide scroll-snap-x pb-4"
           >
-            {featuredProducts.map((product, index) => {
+            {newArrivals.map((product, index) => {
               const primaryImage = product.product_images?.find(img => img.is_primary) || product.product_images?.[0];
               const imageUrl = primaryImage?.url || '/placeholder.svg';
               const priceInfo = calculateDiscountedPrice(product.price, 0, offers || [], product.id);
@@ -96,7 +97,7 @@ export function FeaturedSection() {
                   className="flex-shrink-0 w-64 md:w-72 scroll-snap-item"
                 >
                   <Link to={`/product/${product.slug}`} className="group/card block">
-                    <div className="relative aspect-[3/4] overflow-hidden bg-secondary mb-4">
+                    <div className="relative aspect-[3/4] overflow-hidden bg-background mb-4">
                       <img
                         src={imageUrl}
                         alt={product.name}
@@ -127,7 +128,7 @@ export function FeaturedSection() {
         {/* Mobile Shop All */}
         <div className="flex justify-center mt-8 md:hidden">
           <Button variant="editorial-outline" asChild>
-            <Link to="/shop">Shop All</Link>
+            <Link to="/shop">View All</Link>
           </Button>
         </div>
       </div>
