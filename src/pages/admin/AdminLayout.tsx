@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { useNavigate, Outlet, Link, useLocation } from 'react-router-dom';
 import { useAdmin } from '@/hooks/useAdmin';
 import { useAuth } from '@/hooks/useAuth';
-import { Package, ShoppingCart, LayoutDashboard, LogOut, Tag, Layers, FolderTree, Megaphone, Image, LayoutGrid, RotateCcw, Settings } from 'lucide-react';
+import { Package, ShoppingCart, LayoutDashboard, LogOut, Tag, Layers, FolderTree, Megaphone, Image, LayoutGrid, RotateCcw, Settings, ArrowLeft, Home } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -55,7 +55,18 @@ const AdminLayout = () => {
       {/* Sidebar */}
       <aside className="w-64 bg-card border-r border-border relative">
         <div className="p-6">
-          <h1 className="text-xl font-bold text-foreground">Admin Panel</h1>
+          <div className="flex items-center gap-3 mb-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => navigate('/')}
+              className="h-8 w-8"
+              title="Back to Store"
+            >
+              <Home className="h-4 w-4" />
+            </Button>
+            <h1 className="text-xl font-bold text-foreground">Admin Panel</h1>
+          </div>
         </div>
         <nav className="px-4 space-y-2">
           {navItems.map((item) => (
@@ -75,8 +86,8 @@ const AdminLayout = () => {
         </nav>
         <div className="absolute bottom-4 left-4 right-4">
           <Button
-            variant="outline"
-            className="w-full justify-start gap-3 text-muted-foreground hover:text-foreground"
+            variant="destructive"
+            className="w-full justify-start gap-3"
             onClick={() => signOut()}
           >
             <LogOut className="h-5 w-5" />

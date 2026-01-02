@@ -226,6 +226,50 @@ const AdminOrders = () => {
       return;
     }
 
+    // Restore stock if order is being cancelled
+    if (newStatus === 'cancelled' && order.fulfillment_status !== 'cancelled') {
+      // Fetch order items to restore stock
+      const { data: orderItems } = await supabase
+        .from('order_items')
+        .select('product_id, variant_id, quantity')
+        .eq('order_id', orderId);
+
+      if (orderItems) {
+        for (const item of orderItems) {
+          if (item.variant_id) {
+            // Restore variant stock
+            const { data: variant } = await supabase
+              .from('product_variants')
+              .select('stock_quantity')
+              .eq('id', item.variant_id)
+              .single();
+            
+            if (variant) {
+              await supabase
+                .from('product_variants')
+                .update({ stock_quantity: (variant.stock_quantity || 0) + item.quantity })
+                .eq('id', item.variant_id);
+            }
+          } else if (item.product_id) {
+            // Restore product stock
+            const { data: product } = await supabase
+              .from('products')
+              .select('stock_quantity')
+              .eq('id', item.product_id)
+              .single();
+            
+            if (product) {
+              await supabase
+                .from('products')
+                .update({ stock_quantity: (product.stock_quantity || 0) + item.quantity })
+                .eq('id', item.product_id);
+            }
+          }
+        }
+        toast.success('Stock has been restored for cancelled order');
+      }
+    }
+
     const { error } = await supabase
       .from('orders')
       .update({ 
@@ -255,6 +299,9 @@ const AdminOrders = () => {
         let message = `Your order ${order.order_number} is now ${newStatus}`;
         if (newStatus === 'shipped' && order.tracking_id) {
           message += `. Track with: ${order.shipping_partner} - ${order.tracking_id}`;
+        }
+        if (newStatus === 'cancelled') {
+          message = `Your order ${order.order_number} has been cancelled`;
         }
         
         await supabase.from('notifications').insert({
