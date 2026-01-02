@@ -26,6 +26,12 @@ interface Product {
   is_featured: boolean;
   stock_quantity: number;
   category_id: string | null;
+  collection_id: string | null;
+}
+
+interface Collection {
+  id: string;
+  name: string;
 }
 
 interface ProductVariant {
@@ -55,6 +61,7 @@ interface Category {
 const AdminProducts = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [collections, setCollections] = useState<Collection[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
@@ -78,6 +85,7 @@ const AdminProducts = () => {
     is_featured: false,
     stock_quantity: '0',
     category_id: '',
+    collection_id: '',
   });
 
   // Low stock products
@@ -98,6 +106,7 @@ const AdminProducts = () => {
   useEffect(() => {
     fetchProducts();
     fetchCategories();
+    fetchCollections();
     fetchAllVariants();
   }, []);
 
@@ -118,6 +127,11 @@ const AdminProducts = () => {
   const fetchCategories = async () => {
     const { data } = await supabase.from('categories').select('id, name');
     setCategories(data || []);
+  };
+
+  const fetchCollections = async () => {
+    const { data } = await supabase.from('collections').select('id, name').eq('is_active', true);
+    setCollections(data || []);
   };
 
   const fetchAllVariants = async () => {
@@ -160,6 +174,7 @@ const AdminProducts = () => {
       is_featured: formData.is_featured,
       stock_quantity: parseInt(formData.stock_quantity),
       category_id: formData.category_id || null,
+      collection_id: formData.collection_id || null,
     };
 
     if (editingProduct) {
@@ -204,6 +219,7 @@ const AdminProducts = () => {
       is_featured: product.is_featured,
       stock_quantity: product.stock_quantity.toString(),
       category_id: product.category_id || '',
+      collection_id: product.collection_id || '',
     });
     
     // Fetch variants and images
@@ -363,6 +379,7 @@ const AdminProducts = () => {
       is_featured: false,
       stock_quantity: '0',
       category_id: '',
+      collection_id: '',
     });
     // Don't reset variants here - it clears the global variants list used for stock calculation
     // Instead, refetch all variants to ensure we have the latest data
@@ -504,21 +521,40 @@ const AdminProducts = () => {
                     </div>
                   </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="category">Category</Label>
-                    <Select
-                      value={formData.category_id}
-                      onValueChange={(value) => setFormData({ ...formData, category_id: value })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select category" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {categories.map((cat) => (
-                          <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="category">Category</Label>
+                      <Select
+                        value={formData.category_id}
+                        onValueChange={(value) => setFormData({ ...formData, category_id: value })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select category" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {categories.map((cat) => (
+                            <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="collection">Collection</Label>
+                      <Select
+                        value={formData.collection_id}
+                        onValueChange={(value) => setFormData({ ...formData, collection_id: value })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select collection" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {collections.map((col) => (
+                            <SelectItem key={col.id} value={col.id}>{col.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
 
                   <div className="space-y-2">
