@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Plus, Pencil, Trash2, Loader2, Upload, X, Image as ImageIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
+import { collectionSchema, formatZodErrors } from '@/lib/validationSchemas';
 
 interface CollectionForm {
   name: string;
@@ -95,6 +96,14 @@ const AdminCollections = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validate form data
+    const validationResult = collectionSchema.safeParse(form);
+    
+    if (!validationResult.success) {
+      toast.error(formatZodErrors(validationResult.error));
+      return;
+    }
     
     try {
       if (editingId) {

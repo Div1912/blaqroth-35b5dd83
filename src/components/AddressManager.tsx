@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
+import { addressSchema, formatZodErrors } from '@/lib/validationSchemas';
 
 interface Address {
   id: string;
@@ -80,6 +81,14 @@ export function AddressManager() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
+    
+    // Validate form data
+    const validationResult = addressSchema.safeParse(formData);
+    
+    if (!validationResult.success) {
+      toast.error(formatZodErrors(validationResult.error));
+      return;
+    }
     
     setSaving(true);
 

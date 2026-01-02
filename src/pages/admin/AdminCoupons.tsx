@@ -13,6 +13,7 @@ import { Plus, Pencil, Trash2, Copy, Ticket } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatCurrency } from '@/lib/formatCurrency';
 import { format } from 'date-fns';
+import { couponSchema, formatZodErrors } from '@/lib/validationSchemas';
 
 interface Coupon {
   id: string;
@@ -78,6 +79,17 @@ const AdminCoupons = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validate form data
+    const validationResult = couponSchema.safeParse({
+      ...formData,
+      code: formData.code.toUpperCase(),
+    });
+    
+    if (!validationResult.success) {
+      toast.error(formatZodErrors(validationResult.error));
+      return;
+    }
     
     const couponData = {
       code: formData.code.toUpperCase(),
