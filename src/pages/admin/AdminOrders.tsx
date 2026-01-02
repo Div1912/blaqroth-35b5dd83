@@ -160,6 +160,36 @@ const AdminOrders = () => {
     setLoading(false);
   };
 
+  const sendOrderStatusEmail = async (order: Order, newStatus: string) => {
+    try {
+      const response = await fetch(
+        'https://fiflsgymviowunqnegch.supabase.co/functions/v1/send-order-status-email',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            email: order.email,
+            customerName: order.full_name,
+            orderNumber: order.order_number,
+            newStatus,
+            trackingId: order.tracking_id,
+            shippingPartner: order.shipping_partner,
+          }),
+        }
+      );
+      
+      if (response.ok) {
+        console.log('Order status email sent successfully');
+      } else {
+        console.error('Failed to send order status email');
+      }
+    } catch (error) {
+      console.error('Error sending order status email:', error);
+    }
+  };
+
   const handleFulfillmentChange = async (orderId: string, newStatus: string) => {
     const order = orders.find(o => o.id === orderId);
     if (!order) return;
@@ -190,6 +220,11 @@ const AdminOrders = () => {
       toast.error('Failed to update fulfillment status');
     } else {
       toast.success(`Order marked as ${newStatus}`);
+      
+      // Send email notification for shipped/delivered status
+      if (newStatus === 'shipped' || newStatus === 'delivered') {
+        sendOrderStatusEmail(order, newStatus);
+      }
       
       // Create notification for customer
       const { data: customerData } = await supabase

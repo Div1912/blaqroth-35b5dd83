@@ -12,12 +12,18 @@ export interface DBProduct {
   is_featured: boolean;
   stock_quantity: number;
   category_id: string | null;
+  collection_id: string | null;
   sku: string | null;
   fabric_type: string | null;
   care_instructions: string | null;
   created_at: string;
   updated_at: string;
   category?: {
+    id: string;
+    name: string;
+    slug: string;
+  } | null;
+  collection?: {
     id: string;
     name: string;
     slug: string;
@@ -49,7 +55,7 @@ export interface ProductOffer {
   applies_to: 'all' | 'products' | 'variants';
 }
 
-export const useProducts = (options?: { featured?: boolean; categorySlug?: string }) => {
+export const useProducts = (options?: { featured?: boolean; categorySlug?: string; collectionSlug?: string }) => {
   return useQuery({
     queryKey: ['products', options],
     queryFn: async () => {
@@ -58,6 +64,7 @@ export const useProducts = (options?: { featured?: boolean; categorySlug?: strin
         .select(`
           *,
           category:categories(id, name, slug),
+          collection:collections(id, name, slug),
           product_images(id, url, alt_text, is_primary, display_order),
           product_variants(id, color, size, sku, price_adjustment, stock_quantity)
         `)
@@ -70,7 +77,14 @@ export const useProducts = (options?: { featured?: boolean; categorySlug?: strin
 
       const { data, error } = await query;
       if (error) throw error;
-      return data as DBProduct[];
+      
+      // Filter by collection slug if provided
+      let filteredData = data as DBProduct[];
+      if (options?.collectionSlug) {
+        filteredData = filteredData.filter(p => p.collection?.slug === options.collectionSlug);
+      }
+      
+      return filteredData;
     },
   });
 };

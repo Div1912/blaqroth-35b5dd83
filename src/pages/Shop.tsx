@@ -95,13 +95,14 @@ const Shop = () => {
         );
       })
       .filter((p) => !selectedCategory || p.category?.slug === selectedCategory)
+      .filter((p) => !selectedCollection || p.collection?.slug === selectedCollection)
       .filter((p) => p.price >= priceRange[0] && p.price <= priceRange[1])
       .sort((a, b) => {
         if (sortBy === 'price-asc') return a.price - b.price;
         if (sortBy === 'price-desc') return b.price - a.price;
         return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
       });
-  }, [products, searchQuery, selectedCategory, priceRange, sortBy]);
+  }, [products, searchQuery, selectedCategory, selectedCollection, priceRange, sortBy]);
 
   const activeFiltersCount = 
     (selectedCategory ? 1 : 0) + 

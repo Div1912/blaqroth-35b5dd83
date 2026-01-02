@@ -29,20 +29,14 @@ const Collections = () => {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  // Get product count for each collection (by matching slug in product name or description)
-  const getProductCount = (collectionSlug: string) => {
-    return products?.filter(p => 
-      p.name.toLowerCase().includes(collectionSlug) || 
-      p.description?.toLowerCase().includes(collectionSlug)
-    ).length || 0;
+  // Get product count for each collection (by matching collection_id)
+  const getProductCount = (collectionId: string) => {
+    return products?.filter(p => p.collection_id === collectionId).length || 0;
   };
 
   // Get featured products for each collection
-  const getCollectionProducts = (collectionSlug: string) => {
-    return products?.filter(p => 
-      p.name.toLowerCase().includes(collectionSlug) || 
-      p.description?.toLowerCase().includes(collectionSlug)
-    ).slice(0, 3) || [];
+  const getCollectionProducts = (collectionId: string) => {
+    return products?.filter(p => p.collection_id === collectionId).slice(0, 3) || [];
   };
 
   return (
@@ -87,9 +81,9 @@ const Collections = () => {
           {/* Collections */}
           {!collectionsLoading && collections && (
             <div className="space-y-32">
-              {collections.map((collection, index) => {
-                const collectionProducts = getCollectionProducts(collection.slug);
-                const productCount = getProductCount(collection.slug);
+            {collections.map((collection, index) => {
+                const collectionProducts = getCollectionProducts(collection.id);
+                const productCount = getProductCount(collection.id);
 
                 return (
                   <motion.section
