@@ -14,6 +14,7 @@ import { Badge } from '@/components/ui/badge';
 import { Plus, Pencil, Trash2, Image as ImageIcon, Package, AlertTriangle, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatCurrency } from '@/lib/formatCurrency';
+import { productSchema, variantSchema, formatZodErrors } from '@/lib/validationSchemas';
 
 interface Product {
   id: string;
@@ -164,6 +165,14 @@ const AdminProducts = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    // Validate form data
+    const validationResult = productSchema.safeParse(formData);
+    
+    if (!validationResult.success) {
+      toast.error(formatZodErrors(validationResult.error));
+      return;
+    }
+    
     const productData = {
       name: formData.name,
       slug: formData.slug || generateSlug(formData.name),
@@ -248,6 +257,14 @@ const AdminProducts = () => {
 
   const handleAddVariant = async () => {
     if (!editingProduct) return;
+    
+    // Validate variant data
+    const validationResult = variantSchema.safeParse(variantForm);
+    
+    if (!validationResult.success) {
+      toast.error(formatZodErrors(validationResult.error));
+      return;
+    }
     
     const { data, error } = await supabase
       .from('product_variants')

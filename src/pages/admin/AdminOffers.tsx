@@ -13,6 +13,7 @@ import { Plus, Pencil, Trash2, Tag } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatCurrency } from '@/lib/formatCurrency';
 import { format } from 'date-fns';
+import { offerSchema, formatZodErrors } from '@/lib/validationSchemas';
 
 interface Offer {
   id: string;
@@ -85,6 +86,14 @@ const AdminOffers = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validate form data
+    const validationResult = offerSchema.safeParse(formData);
+    
+    if (!validationResult.success) {
+      toast.error(formatZodErrors(validationResult.error));
+      return;
+    }
     
     const offerData = {
       title: formData.title,
