@@ -31,6 +31,30 @@ export const productSchema = z.object({
   collection_id: z.string().optional().or(z.literal('')),
 });
 
+// Category validation schema
+export const categorySchema = z.object({
+  name: z.string()
+    .trim()
+    .min(1, 'Category name is required')
+    .max(100, 'Category name must be less than 100 characters'),
+  slug: z.string()
+    .trim()
+    .min(1, 'Slug is required')
+    .max(100, 'Slug must be less than 100 characters')
+    .regex(/^[a-z0-9-]+$/, 'Slug can only contain lowercase letters, numbers, and hyphens'),
+  description: z.string()
+    .max(1000, 'Description must be less than 1000 characters')
+    .optional()
+    .or(z.literal('')),
+  image_url: z.string()
+    .url('Image URL must be a valid URL')
+    .max(500, 'Image URL must be less than 500 characters')
+    .optional()
+    .or(z.literal('')),
+  display_order: z.number().int().min(0, 'Display order must be non-negative'),
+  parent_id: z.string().optional().or(z.literal('')).or(z.literal('none')),
+});
+
 // Collection validation schema
 export const collectionSchema = z.object({
   name: z.string()
@@ -213,6 +237,7 @@ export const formatZodErrors = (error: z.ZodError): string => {
 
 // Type exports
 export type ProductFormData = z.infer<typeof productSchema>;
+export type CategoryFormData = z.infer<typeof categorySchema>;
 export type CollectionFormData = z.infer<typeof collectionSchema>;
 export type CouponFormData = z.infer<typeof couponSchema>;
 export type OfferFormData = z.infer<typeof offerSchema>;
