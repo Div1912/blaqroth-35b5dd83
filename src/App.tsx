@@ -2,11 +2,12 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import { ThemeProvider } from "next-themes";
 import { AuthProvider } from "@/hooks/useAuth";
 import { GlobalLoader } from "@/components/GlobalLoader";
 import { useGlobalLoader } from "@/hooks/useGlobalLoader";
+import { PageTransition } from "@/components/PageTransition";
 import Index from "./pages/Index";
 import Shop from "./pages/Shop";
 import ProductDetail from "./pages/ProductDetail";
@@ -25,6 +26,10 @@ import AdminCollections from "./pages/admin/AdminCollections";
 import AdminOrders from "./pages/admin/AdminOrders";
 import AdminOffers from "./pages/admin/AdminOffers";
 import AdminCoupons from "./pages/admin/AdminCoupons";
+import AdminAnnouncements from "./pages/admin/AdminAnnouncements";
+import AdminHeroSlides from "./pages/admin/AdminHeroSlides";
+import AdminEditorialGrid from "./pages/admin/AdminEditorialGrid";
+import AdminReturns from "./pages/admin/AdminReturns";
 import PrivacyPolicy from "./pages/legal/PrivacyPolicy";
 import TermsConditions from "./pages/legal/TermsConditions";
 import RefundPolicy from "./pages/legal/RefundPolicy";
@@ -34,40 +39,51 @@ const queryClient = new QueryClient();
 
 const AppContent = () => {
   const { isLoading } = useGlobalLoader();
+  const location = useLocation();
+  const isAdminRoute = location.pathname.startsWith('/admin');
   
   return (
     <>
       <GlobalLoader isLoading={isLoading} />
-      <Routes>
-        <Route path="/" element={<Index />} />
-        <Route path="/shop" element={<Shop />} />
-        <Route path="/product/:id" element={<ProductDetail />} />
-        <Route path="/collections" element={<Collections />} />
-        <Route path="/about" element={<About />} />
-        <Route path="/account" element={<Account />} />
-        <Route path="/checkout" element={<Checkout />} />
-        <Route path="/auth" element={<Auth />} />
-        <Route path="/order/:orderNumber" element={<OrderTracking />} />
-        
-        {/* Legal Pages */}
-        <Route path="/privacy-policy" element={<PrivacyPolicy />} />
-        <Route path="/terms-conditions" element={<TermsConditions />} />
-        <Route path="/refund-policy" element={<RefundPolicy />} />
-        <Route path="/contact" element={<Contact />} />
-        
-        {/* Admin Routes */}
-        <Route path="/admin" element={<AdminLayout />}>
-          <Route index element={<AdminDashboard />} />
-          <Route path="products" element={<AdminProducts />} />
-          <Route path="categories" element={<AdminCategories />} />
-          <Route path="collections" element={<AdminCollections />} />
-          <Route path="orders" element={<AdminOrders />} />
-          <Route path="offers" element={<AdminOffers />} />
-          <Route path="coupons" element={<AdminCoupons />} />
-        </Route>
-        
-        <Route path="*" element={<NotFound />} />
-      </Routes>
+      {isAdminRoute ? (
+        <Routes>
+          <Route path="/admin" element={<AdminLayout />}>
+            <Route index element={<AdminDashboard />} />
+            <Route path="products" element={<AdminProducts />} />
+            <Route path="categories" element={<AdminCategories />} />
+            <Route path="collections" element={<AdminCollections />} />
+            <Route path="orders" element={<AdminOrders />} />
+            <Route path="offers" element={<AdminOffers />} />
+            <Route path="coupons" element={<AdminCoupons />} />
+            <Route path="announcements" element={<AdminAnnouncements />} />
+            <Route path="hero-slides" element={<AdminHeroSlides />} />
+            <Route path="editorial-grid" element={<AdminEditorialGrid />} />
+            <Route path="returns" element={<AdminReturns />} />
+          </Route>
+        </Routes>
+      ) : (
+        <PageTransition>
+          <Routes location={location}>
+            <Route path="/" element={<Index />} />
+            <Route path="/shop" element={<Shop />} />
+            <Route path="/product/:id" element={<ProductDetail />} />
+            <Route path="/collections" element={<Collections />} />
+            <Route path="/about" element={<About />} />
+            <Route path="/account" element={<Account />} />
+            <Route path="/checkout" element={<Checkout />} />
+            <Route path="/auth" element={<Auth />} />
+            <Route path="/order/:orderNumber" element={<OrderTracking />} />
+            
+            {/* Legal Pages */}
+            <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+            <Route path="/terms-conditions" element={<TermsConditions />} />
+            <Route path="/refund-policy" element={<RefundPolicy />} />
+            <Route path="/contact" element={<Contact />} />
+            
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </PageTransition>
+      )}
     </>
   );
 };
