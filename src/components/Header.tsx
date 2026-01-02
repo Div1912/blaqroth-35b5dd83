@@ -8,6 +8,8 @@ import { useWishlistStore } from '@/store/wishlistStore';
 import { useAuth } from '@/hooks/useAuth';
 import { useAdmin } from '@/hooks/useAdmin';
 import { NotificationDropdown } from '@/components/NotificationDropdown';
+import { SearchModal } from '@/components/SearchModal';
+import { useSearch } from '@/hooks/useSearch';
 
 const navLinks = [
   { name: 'Collections', href: '/collections' },
@@ -23,6 +25,7 @@ export function Header() {
   const { isAdmin } = useAdmin();
   const { openCart, getItemCount } = useCartStore();
   const { items: wishlistItems } = useWishlistStore();
+  const { openSearch } = useSearch();
   const itemCount = getItemCount();
 
   useEffect(() => {
@@ -74,9 +77,11 @@ export function Header() {
 
             {/* Right Icons */}
             <div className="flex items-center space-x-0.5 sm:space-x-1 md:space-x-2">
-              <Button variant="ghost" size="icon" className="hidden md:flex h-9 w-9">
+              <Button variant="ghost" size="icon" className="hidden md:flex h-9 w-9" onClick={openSearch}>
                 <Search className="h-5 w-5" strokeWidth={1.5} />
               </Button>
+              
+              <SearchModal />
               
               {isAdmin && (
                 <Link to="/admin">
