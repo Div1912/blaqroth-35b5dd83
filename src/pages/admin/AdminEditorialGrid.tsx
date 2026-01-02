@@ -1,5 +1,9 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
+import { arrayMove, SortableContext, sortableKeyboardCoordinates, rectSortingStrategy } from '@dnd-kit/sortable';
+import { useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,7 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Label } from '@/components/ui/label';
 import { ImageUpload } from '@/components/ImageUpload';
 import { toast } from 'sonner';
-import { Plus, Edit, Trash2, LayoutGrid } from 'lucide-react';
+import { Plus, Edit, Trash2, LayoutGrid, GripVertical } from 'lucide-react';
 
 interface EditorialGridItem {
   id: string;
@@ -19,6 +23,63 @@ interface EditorialGridItem {
   link: string;
   display_order: number;
   is_active: boolean;
+}
+
+function SortableGridItem({ item, onEdit, onDelete, onToggle }: { 
+  item: EditorialGridItem; 
+  onEdit: () => void; 
+  onDelete: () => void;
+  onToggle: (checked: boolean) => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <Card ref={setNodeRef} style={style} className="overflow-hidden">
+      <div className="relative">
+        <div
+          {...attributes}
+          {...listeners}
+          className="absolute left-2 top-2 cursor-grab active:cursor-grabbing z-10 p-1 bg-background/80 rounded hover:bg-background"
+        >
+          <GripVertical className="h-4 w-4 text-muted-foreground" />
+        </div>
+        <div className="aspect-[4/3] bg-muted">
+          <img src={item.image_url} alt={item.title} className="w-full h-full object-cover" />
+        </div>
+      </div>
+      <CardContent className="py-4">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <p className="font-medium truncate">{item.title}</p>
+            {item.subtitle && (
+              <p className="text-sm text-muted-foreground truncate">{item.subtitle}</p>
+            )}
+            <p className="text-xs text-muted-foreground mt-1">
+              Link: {item.link} • Order: {item.display_order}
+            </p>
+          </div>
+          <div className="flex items-center gap-1">
+            <Switch
+              checked={item.is_active}
+              onCheckedChange={onToggle}
+            />
+            <Button variant="ghost" size="icon" onClick={onEdit}>
+              <Edit className="h-4 w-4" />
+            </Button>
+            <Button variant="ghost" size="icon" onClick={onDelete}>
+              <Trash2 className="h-4 w-4 text-destructive" />
+            </Button>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
 }
 
 const AdminEditorialGrid = () => {
@@ -33,6 +94,11 @@ const AdminEditorialGrid = () => {
     display_order: 0,
     is_active: true,
   });
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
 
   const { data: items, isLoading } = useQuery({
     queryKey: ['admin-editorial-grid'],
@@ -107,6 +173,36 @@ const AdminEditorialGrid = () => {
     onError: () => toast.error('Failed to update status'),
   });
 
+  const reorderMutation = useMutation({
+    mutationFn: async (updates: { id: string; display_order: number }[]) => {
+      const promises = updates.map(item =>
+        supabase.from('editorial_grid_items').update({ display_order: item.display_order }).eq('id', item.id)
+      );
+      await Promise.all(promises);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-editorial-grid'] });
+      toast.success('Order updated');
+    },
+    onError: () => toast.error('Failed to update order'),
+  });
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id || !items) return;
+
+    const oldIndex = items.findIndex((i) => i.id === active.id);
+    const newIndex = items.findIndex((i) => i.id === over.id);
+    const newItems = arrayMove(items, oldIndex, newIndex);
+    
+    const updates = newItems.map((item, index) => ({
+      id: item.id,
+      display_order: index + 1,
+    }));
+    
+    reorderMutation.mutate(updates);
+  };
+
   const resetForm = () => {
     setForm({ title: '', subtitle: '', image_url: '', link: '', display_order: (items?.length || 0) + 1, is_active: true });
     setEditingItem(null);
@@ -144,7 +240,7 @@ const AdminEditorialGrid = () => {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Editorial Grid</h1>
-          <p className="text-muted-foreground">Manage homepage editorial grid items</p>
+          <p className="text-muted-foreground">Manage homepage editorial grid items. Drag to reorder.</p>
         </div>
         <Dialog open={dialogOpen} onOpenChange={(open) => { if (!open) resetForm(); setDialogOpen(open); }}>
           <DialogTrigger asChild>
@@ -233,48 +329,25 @@ const AdminEditorialGrid = () => {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {items?.map((item) => (
-            <Card key={item.id} className="overflow-hidden">
-              <div className="aspect-[4/3] bg-muted">
-                <img src={item.image_url} alt={item.title} className="w-full h-full object-cover" />
-              </div>
-              <CardContent className="py-4">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="font-medium truncate">{item.title}</p>
-                    {item.subtitle && (
-                      <p className="text-sm text-muted-foreground truncate">{item.subtitle}</p>
-                    )}
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Link: {item.link} • Order: {item.display_order}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Switch
-                      checked={item.is_active}
-                      onCheckedChange={(checked) => toggleActive.mutate({ id: item.id, is_active: checked })}
-                    />
-                    <Button variant="ghost" size="icon" onClick={() => openEdit(item)}>
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => {
-                        if (confirm('Delete this item?')) {
-                          deleteMutation.mutate(item.id);
-                        }
-                      }}
-                    >
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <SortableContext items={items?.map(i => i.id) || []} strategy={rectSortingStrategy}>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {items?.map((item) => (
+                <SortableGridItem
+                  key={item.id}
+                  item={item}
+                  onEdit={() => openEdit(item)}
+                  onDelete={() => {
+                    if (confirm('Delete this item?')) {
+                      deleteMutation.mutate(item.id);
+                    }
+                  }}
+                  onToggle={(checked) => toggleActive.mutate({ id: item.id, is_active: checked })}
+                />
+              ))}
+            </div>
+          </SortableContext>
+        </DndContext>
       )}
     </div>
   );

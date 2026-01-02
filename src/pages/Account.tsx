@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
-import { User, MapPin, Package, LogOut, Heart, Edit2, Save, X, ChevronDown, ChevronUp, RotateCcw } from 'lucide-react';
+import { User, MapPin, Package, LogOut, Heart, Edit2, Save, X, ChevronDown, RotateCcw } from 'lucide-react';
 import { AnimatedBackground } from '@/components/AnimatedBackground';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
@@ -50,6 +50,7 @@ interface Order {
 
 interface OrderItem {
   id: string;
+  product_id: string | null;
   product_name: string;
   quantity: number;
   price: number;
@@ -87,6 +88,13 @@ const Account = () => {
   const [cancelReason, setCancelReason] = useState('');
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [cancelling, setCancelling] = useState(false);
+  
+  // Return request state
+  const createReturn = useCreateReturn();
+  const [showReturnDialog, setShowReturnDialog] = useState(false);
+  const [returnItem, setReturnItem] = useState<OrderItem | null>(null);
+  const [returnReason, setReturnReason] = useState('');
+  const [returnNotes, setReturnNotes] = useState('');
   
   // Wishlist - using DB products
   const { items: wishlistItems, removeItem: removeFromWishlist } = useWishlistStore();
@@ -152,6 +160,36 @@ const Account = () => {
       .eq('order_id', order.id);
     setOrderItems((data || []) as OrderItem[]);
     setOrderDialogOpen(true);
+  };
+
+  const openReturnDialog = (item: OrderItem) => {
+    setReturnItem(item);
+    setReturnReason('');
+    setReturnNotes('');
+    setShowReturnDialog(true);
+  };
+
+  const handleSubmitReturn = async () => {
+    if (!selectedOrder || !returnItem || !returnReason.trim()) return;
+    
+    try {
+      await createReturn.mutateAsync({
+        orderId: selectedOrder.id,
+        orderItemId: returnItem.id,
+        productId: returnItem.product_id || undefined,
+        productName: returnItem.product_name,
+        reason: returnReason,
+        additionalNotes: returnNotes || undefined,
+      });
+      
+      toast.success('Return request submitted successfully');
+      setShowReturnDialog(false);
+      setReturnItem(null);
+      setReturnReason('');
+      setReturnNotes('');
+    } catch (error) {
+      toast.error('Failed to submit return request');
+    }
   };
 
   const handleCancelOrder = async () => {
@@ -702,7 +740,17 @@ const Account = () => {
                         )}
                         <p className="text-muted-foreground text-xs">Qty: {item.quantity}</p>
                       </div>
-                      <span className="font-medium">{formatPrice(item.price * item.quantity)}</span>
+                      <div className="flex flex-col items-end gap-1">
+                        <span className="font-medium">{formatPrice(item.price * item.quantity)}</span>
+                        {selectedOrder?.fulfillment_status === 'delivered' && (
+                          <button
+                            onClick={() => openReturnDialog(item)}
+                            className="text-xs text-primary hover:underline"
+                          >
+                            Request Return
+                          </button>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -743,6 +791,65 @@ const Account = () => {
                 className="flex-1"
               >
                 {cancelling ? 'Cancelling...' : 'Cancel Order'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Return Request Dialog */}
+      <Dialog open={showReturnDialog} onOpenChange={setShowReturnDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Request Return</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {returnItem && (
+              <div className="p-3 bg-muted/30 rounded">
+                <p className="font-medium">{returnItem.product_name}</p>
+                {(returnItem.color || returnItem.size) && (
+                  <p className="text-sm text-muted-foreground">
+                    {returnItem.color}{returnItem.color && returnItem.size && ' / '}{returnItem.size}
+                  </p>
+                )}
+              </div>
+            )}
+            <div>
+              <label className="text-sm text-muted-foreground block mb-2">Reason for return *</label>
+              <select
+                value={returnReason}
+                onChange={(e) => setReturnReason(e.target.value)}
+                className="w-full bg-secondary/50 border border-white/10 rounded px-4 py-3 focus:outline-none focus:ring-1 focus:ring-primary"
+              >
+                <option value="">Select a reason</option>
+                <option value="Wrong size">Wrong size</option>
+                <option value="Defective/Damaged">Defective/Damaged</option>
+                <option value="Not as described">Not as described</option>
+                <option value="Changed my mind">Changed my mind</option>
+                <option value="Quality not as expected">Quality not as expected</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-sm text-muted-foreground block mb-2">Additional notes (optional)</label>
+              <textarea
+                value={returnNotes}
+                onChange={(e) => setReturnNotes(e.target.value)}
+                placeholder="Provide any additional details..."
+                className="w-full bg-secondary/50 border border-white/10 rounded px-4 py-3 focus:outline-none focus:ring-1 focus:ring-primary min-h-[100px]"
+              />
+            </div>
+            <div className="flex gap-3">
+              <Button variant="glass" onClick={() => setShowReturnDialog(false)} className="flex-1">
+                Cancel
+              </Button>
+              <Button
+                variant="glass-gold"
+                onClick={handleSubmitReturn}
+                disabled={!returnReason.trim() || createReturn.isPending}
+                className="flex-1"
+              >
+                {createReturn.isPending ? 'Submitting...' : 'Submit Request'}
               </Button>
             </div>
           </div>
