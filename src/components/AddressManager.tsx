@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Edit2, Trash2, MapPin, Check } from 'lucide-react';
+import { Plus, Edit2, Trash2, MapPin, Check, Navigation, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -51,6 +51,7 @@ export function AddressManager() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState<AddressFormData>(emptyForm);
   const [saving, setSaving] = useState(false);
+  const [fetchingLocation, setFetchingLocation] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -202,6 +203,73 @@ export function AddressManager() {
     setShowForm(false);
   };
 
+  const fetchLocationAddress = async () => {
+    if (!navigator.geolocation) {
+      toast.error('Geolocation is not supported by your browser');
+      return;
+    }
+
+    setFetchingLocation(true);
+    
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const { latitude, longitude } = position.coords;
+        
+        try {
+          // Using OpenStreetMap's Nominatim API for reverse geocoding (free, no API key needed)
+          const response = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&addressdetails=1`
+          );
+          
+          if (!response.ok) {
+            throw new Error('Failed to fetch address');
+          }
+          
+          const data = await response.json();
+          const address = data.address;
+          
+          setFormData(prev => ({
+            ...prev,
+            address_line1: [address.house_number, address.road].filter(Boolean).join(' ') || address.suburb || '',
+            address_line2: address.neighbourhood || address.suburb || '',
+            city: address.city || address.town || address.village || address.county || '',
+            state: address.state || '',
+            postal_code: address.postcode || '',
+            country: address.country || 'India',
+          }));
+          
+          toast.success('Location fetched successfully! Please verify the address.');
+        } catch (error) {
+          console.error('Error fetching address:', error);
+          toast.error('Failed to fetch address from location');
+        } finally {
+          setFetchingLocation(false);
+        }
+      },
+      (error) => {
+        setFetchingLocation(false);
+        switch (error.code) {
+          case error.PERMISSION_DENIED:
+            toast.error('Location permission denied. Please enable location access.');
+            break;
+          case error.POSITION_UNAVAILABLE:
+            toast.error('Location information is unavailable.');
+            break;
+          case error.TIMEOUT:
+            toast.error('Location request timed out.');
+            break;
+          default:
+            toast.error('An error occurred while fetching location.');
+        }
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0
+      }
+    );
+  };
+
   if (loading) {
     return (
       <div className="glass-panel p-8 text-center">
@@ -231,9 +299,31 @@ export function AddressManager() {
             onSubmit={handleSubmit}
             className="glass-panel p-6 space-y-4"
           >
-            <h3 className="font-display text-xl mb-4">
-              {editingId ? 'Edit Address' : 'Add New Address'}
-            </h3>
+            <div className="flex items-center justify-between">
+              <h3 className="font-display text-xl">
+                {editingId ? 'Edit Address' : 'Add New Address'}
+              </h3>
+              <Button
+                type="button"
+                variant="glass"
+                size="sm"
+                onClick={fetchLocationAddress}
+                disabled={fetchingLocation}
+                className="flex items-center gap-2"
+              >
+                {fetchingLocation ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Fetching...
+                  </>
+                ) : (
+                  <>
+                    <Navigation className="h-4 w-4" />
+                    Use My Location
+                  </>
+                )}
+              </Button>
+            </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
