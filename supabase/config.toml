@@ -1,4 +1,5 @@
 project_id = "fiflsgymviowunqnegch"
 
+# Edge function: send-order-status-email - JWT verification enabled for security
 [functions.send-order-status-email]
-verify_jwt = false
+verify_jwt = true

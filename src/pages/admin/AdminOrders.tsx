@@ -162,12 +162,21 @@ const AdminOrders = () => {
 
   const sendOrderStatusEmail = async (order: Order, newStatus: string) => {
     try {
+      // Get current session for authorization
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session?.access_token) {
+        console.error('No active session for sending email');
+        return;
+      }
+
       const response = await fetch(
         'https://fiflsgymviowunqnegch.supabase.co/functions/v1/send-order-status-email',
         {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`,
           },
           body: JSON.stringify({
             email: order.email,
@@ -181,12 +190,21 @@ const AdminOrders = () => {
       );
       
       if (response.ok) {
-        console.log('Order status email sent successfully');
+        // Log only in development
+        if (import.meta.env.DEV) {
+          console.log('Order status email sent successfully');
+        }
       } else {
-        console.error('Failed to send order status email');
+        // Don't expose internal errors in production
+        if (import.meta.env.DEV) {
+          console.error('Failed to send order status email');
+        }
       }
     } catch (error) {
-      console.error('Error sending order status email:', error);
+      // Don't expose internal errors in production
+      if (import.meta.env.DEV) {
+        console.error('Error sending order status email:', error);
+      }
     }
   };
 
