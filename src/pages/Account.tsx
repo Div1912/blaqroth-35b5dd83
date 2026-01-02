@@ -59,6 +59,7 @@ interface OrderItem {
   variant_details: string | null;
   color: string | null;
   size: string | null;
+  image_url?: string;
 }
 
 const Account = () => {
@@ -161,7 +162,27 @@ const Account = () => {
       .from('order_items')
       .select('*')
       .eq('order_id', order.id);
-    setOrderItems((data || []) as OrderItem[]);
+    
+    // Fetch product images for order items
+    const items = (data || []) as OrderItem[];
+    const productIds = items.map(i => i.product_id).filter(Boolean) as string[];
+    
+    if (productIds.length > 0) {
+      const { data: images } = await supabase
+        .from('product_images')
+        .select('product_id, url')
+        .in('product_id', productIds)
+        .eq('is_primary', true);
+      
+      const imageMap = new Map((images || []).map(img => [img.product_id, img.url]));
+      items.forEach(item => {
+        if (item.product_id) {
+          item.image_url = imageMap.get(item.product_id);
+        }
+      });
+    }
+    
+    setOrderItems(items);
     setOrderDialogOpen(true);
   };
 
@@ -779,11 +800,30 @@ const Account = () => {
                     const daysSinceDelivery = differenceInDays(new Date(), deliveryDate);
                     const canReturn = selectedOrder?.fulfillment_status === 'delivered' && daysSinceDelivery <= returnWindowDays;
                     const daysRemaining = returnWindowDays - daysSinceDelivery;
+                    
+                    // Check if return already exists for this item
+                    const existingReturn = returns?.find(r => r.order_item_id === item.id);
+                    const hasActiveReturn = existingReturn && existingReturn.status !== 'rejected';
 
                     return (
-                      <div key={item.id} className="flex justify-between text-sm p-3 bg-muted/30 rounded">
-                        <div>
-                          <p className="font-medium">{item.product_name}</p>
+                      <div key={item.id} className="flex gap-3 text-sm p-3 bg-muted/30 rounded">
+                        {/* Product Image */}
+                        <div className="w-12 h-12 rounded overflow-hidden bg-muted flex-shrink-0">
+                          {item.image_url ? (
+                            <img 
+                              src={item.image_url} 
+                              alt={item.product_name}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center">
+                              <Package className="h-5 w-5 text-muted-foreground" />
+                            </div>
+                          )}
+                        </div>
+                        
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium truncate">{item.product_name}</p>
                           {(item.color || item.size) && (
                             <p className="text-muted-foreground text-xs">
                               {item.color}{item.color && item.size && ' / '}{item.size}
@@ -791,9 +831,31 @@ const Account = () => {
                           )}
                           <p className="text-muted-foreground text-xs">Qty: {item.quantity}</p>
                         </div>
+                        
                         <div className="flex flex-col items-end gap-1">
                           <span className="font-medium">{formatPrice(item.price * item.quantity)}</span>
-                          {canReturn ? (
+                          
+                          {/* Show existing return status */}
+                          {existingReturn ? (
+                            <div className="text-right">
+                              <Badge 
+                                variant={existingReturn.status === 'approved' ? 'default' : existingReturn.status === 'rejected' ? 'destructive' : 'secondary'}
+                                className="text-xs"
+                              >
+                                Return {existingReturn.status}
+                              </Badge>
+                              {existingReturn.status === 'rejected' && canReturn && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => openReturnDialog(item)}
+                                  className="text-xs h-6 px-2 mt-1"
+                                >
+                                  Retry
+                                </Button>
+                              )}
+                            </div>
+                          ) : canReturn ? (
                             <div className="text-right">
                               <Button
                                 size="sm"
