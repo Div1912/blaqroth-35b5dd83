@@ -1,11 +1,13 @@
 import { motion } from 'framer-motion';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
+import { CartDrawer } from '@/components/CartDrawer';
 import { AnimatedBackground } from '@/components/AnimatedBackground';
 import { BackButton } from '@/components/BackButton';
 import { Button } from '@/components/ui/button';
 import { Mail, Phone, MapPin, Clock } from 'lucide-react';
 import { useState, useEffect } from 'react';
+import { toast } from 'sonner';
 
 const Contact = () => {
   const [scrollProgress, setScrollProgress] = useState(0);
@@ -25,6 +27,7 @@ const Contact = () => {
     <div className="min-h-screen bg-background relative">
       <AnimatedBackground scrollProgress={scrollProgress} />
       <Header />
+      <CartDrawer />
 
       <main className="pt-32 pb-20">
         <div className="container mx-auto px-6 md:px-12 max-w-4xl">
@@ -113,11 +116,31 @@ const Contact = () => {
             >
               <h2 className="font-display text-2xl tracking-wider mb-6">Send a Message</h2>
               
-              <form className="space-y-4">
+              <form 
+                className="space-y-4"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const formData = new FormData(e.currentTarget);
+                  const name = formData.get('name');
+                  const email = formData.get('email');
+                  const subject = formData.get('subject');
+                  const message = formData.get('message');
+                  
+                  if (!name || !email || !message) {
+                    toast.error('Please fill in all required fields');
+                    return;
+                  }
+                  
+                  // In a real app, this would send to a backend
+                  toast.success('Message sent! We will get back to you soon.');
+                  (e.target as HTMLFormElement).reset();
+                }}
+              >
                 <div>
-                  <label className="text-sm text-muted-foreground block mb-2">Name</label>
+                  <label className="text-sm text-muted-foreground block mb-2">Name *</label>
                   <input
                     type="text"
+                    name="name"
                     className="w-full bg-secondary/50 border border-white/10 rounded px-4 py-3 focus:outline-none focus:ring-1 focus:ring-primary"
                     placeholder="Your name"
                     required
@@ -125,9 +148,10 @@ const Contact = () => {
                 </div>
                 
                 <div>
-                  <label className="text-sm text-muted-foreground block mb-2">Email</label>
+                  <label className="text-sm text-muted-foreground block mb-2">Email *</label>
                   <input
                     type="email"
+                    name="email"
                     className="w-full bg-secondary/50 border border-white/10 rounded px-4 py-3 focus:outline-none focus:ring-1 focus:ring-primary"
                     placeholder="your@email.com"
                     required
@@ -136,7 +160,10 @@ const Contact = () => {
                 
                 <div>
                   <label className="text-sm text-muted-foreground block mb-2">Subject</label>
-                  <select className="w-full bg-secondary/50 border border-white/10 rounded px-4 py-3 focus:outline-none focus:ring-1 focus:ring-primary">
+                  <select 
+                    name="subject"
+                    className="w-full bg-secondary/50 border border-white/10 rounded px-4 py-3 focus:outline-none focus:ring-1 focus:ring-primary"
+                  >
                     <option value="">Select a topic</option>
                     <option value="order">Order Inquiry</option>
                     <option value="return">Returns & Refunds</option>
@@ -147,8 +174,9 @@ const Contact = () => {
                 </div>
                 
                 <div>
-                  <label className="text-sm text-muted-foreground block mb-2">Message</label>
+                  <label className="text-sm text-muted-foreground block mb-2">Message *</label>
                   <textarea
+                    name="message"
                     rows={4}
                     className="w-full bg-secondary/50 border border-white/10 rounded px-4 py-3 focus:outline-none focus:ring-1 focus:ring-primary resize-none"
                     placeholder="How can we help you?"

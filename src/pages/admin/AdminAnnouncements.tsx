@@ -54,13 +54,14 @@ const AdminAnnouncements = () => {
         link: data.link || null,
         link_text: data.link_text || null,
         is_active: data.is_active,
-        start_date: data.start_date || null,
-        end_date: data.end_date || null,
+        start_date: data.start_date ? new Date(data.start_date).toISOString() : null,
+        end_date: data.end_date ? new Date(data.end_date).toISOString() : null,
       });
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-announcements'] });
+      queryClient.invalidateQueries({ queryKey: ['announcements'] });
       toast.success('Announcement created');
       resetForm();
     },
@@ -74,13 +75,14 @@ const AdminAnnouncements = () => {
         link: data.link || null,
         link_text: data.link_text || null,
         is_active: data.is_active,
-        start_date: data.start_date || null,
-        end_date: data.end_date || null,
+        start_date: data.start_date ? new Date(data.start_date).toISOString() : null,
+        end_date: data.end_date ? new Date(data.end_date).toISOString() : null,
       }).eq('id', id);
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-announcements'] });
+      queryClient.invalidateQueries({ queryKey: ['announcements'] });
       toast.success('Announcement updated');
       resetForm();
     },
@@ -121,8 +123,8 @@ const AdminAnnouncements = () => {
       link: announcement.link || '',
       link_text: announcement.link_text || '',
       is_active: announcement.is_active,
-      start_date: announcement.start_date || '',
-      end_date: announcement.end_date || '',
+      start_date: announcement.start_date ? new Date(announcement.start_date).toISOString().split('T')[0] : '',
+      end_date: announcement.end_date ? new Date(announcement.end_date).toISOString().split('T')[0] : '',
     });
     setDialogOpen(true);
   };

@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Plus, Pencil, Trash2, Loader2, FolderTree, Image as ImageIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { categorySchema, formatZodErrors } from '@/lib/validationSchemas';
+import { ImageUpload } from '@/components/ImageUpload';
 
 interface Category {
   id: string;
@@ -272,20 +273,13 @@ const AdminCategories = () => {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="image_url">Image URL</Label>
-                <Input
-                  id="image_url"
+                <Label>Category Image</Label>
+                <ImageUpload
                   value={form.image_url}
-                  onChange={(e) => setForm({ ...form, image_url: e.target.value })}
-                  placeholder="https://..."
+                  onChange={(url) => setForm({ ...form, image_url: url })}
+                  folder="categories"
+                  accept="image/*"
                 />
-                {form.image_url && (
-                  <img 
-                    src={form.image_url} 
-                    alt="Category preview" 
-                    className="w-full h-32 object-cover rounded-lg border mt-2"
-                  />
-                )}
               </div>
 
               <div className="space-y-2">
