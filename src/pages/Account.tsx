@@ -200,6 +200,46 @@ const Account = () => {
     
     setCancelling(true);
     try {
+      // First, restore stock for cancelled items
+      const { data: orderItemsToRestore } = await supabase
+        .from('order_items')
+        .select('product_id, variant_id, quantity')
+        .eq('order_id', selectedOrder.id);
+
+      if (orderItemsToRestore) {
+        for (const item of orderItemsToRestore) {
+          if (item.variant_id) {
+            // Restore variant stock
+            const { data: variant } = await supabase
+              .from('product_variants')
+              .select('stock_quantity')
+              .eq('id', item.variant_id)
+              .single();
+            
+            if (variant) {
+              await supabase
+                .from('product_variants')
+                .update({ stock_quantity: (variant.stock_quantity || 0) + item.quantity })
+                .eq('id', item.variant_id);
+            }
+          } else if (item.product_id) {
+            // Restore product stock
+            const { data: product } = await supabase
+              .from('products')
+              .select('stock_quantity')
+              .eq('id', item.product_id)
+              .single();
+            
+            if (product) {
+              await supabase
+                .from('products')
+                .update({ stock_quantity: (product.stock_quantity || 0) + item.quantity })
+                .eq('id', item.product_id);
+            }
+          }
+        }
+      }
+
       const { error } = await supabase
         .from('orders')
         .update({ 
@@ -229,7 +269,7 @@ const Account = () => {
         await supabase.from('notifications').insert(notifications);
       }
 
-      toast.success('Order cancelled successfully');
+      toast.success('Order cancelled successfully. Stock has been restored.');
       setSelectedOrder({ ...selectedOrder, fulfillment_status: 'cancelled', status: 'cancelled', cancellation_reason: cancelReason });
       setShowCancelDialog(false);
       setCancelReason('');
@@ -755,13 +795,16 @@ const Account = () => {
                           <span className="font-medium">{formatPrice(item.price * item.quantity)}</span>
                           {canReturn ? (
                             <div className="text-right">
-                              <button
+                              <Button
+                                size="sm"
+                                variant="destructive"
                                 onClick={() => openReturnDialog(item)}
-                                className="text-xs text-primary hover:underline"
+                                className="text-xs h-7 px-3"
                               >
+                                <RotateCcw className="h-3 w-3 mr-1" />
                                 Request Return
-                              </button>
-                              <p className="text-xs text-muted-foreground">{daysRemaining} days left</p>
+                              </Button>
+                              <p className="text-xs text-muted-foreground mt-1">{daysRemaining} days left</p>
                             </div>
                           ) : selectedOrder?.fulfillment_status === 'delivered' ? (
                             <p className="text-xs text-muted-foreground">Return window expired</p>
