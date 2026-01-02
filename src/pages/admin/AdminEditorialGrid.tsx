@@ -7,8 +7,9 @@ import { Switch } from '@/components/ui/switch';
 import { Card, CardContent } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
+import { ImageUpload } from '@/components/ImageUpload';
 import { toast } from 'sonner';
-import { Plus, Edit, Trash2, LayoutGrid, GripVertical } from 'lucide-react';
+import { Plus, Edit, Trash2, LayoutGrid } from 'lucide-react';
 
 interface EditorialGridItem {
   id: string;
@@ -171,11 +172,19 @@ const AdminEditorialGrid = () => {
                 />
               </div>
               <div>
-                <Label>Image URL *</Label>
+                <Label>Image *</Label>
+                <ImageUpload
+                  value={form.image_url}
+                  onChange={(url) => setForm({ ...form, image_url: url })}
+                  folder="editorial-grid"
+                  accept="image/*"
+                />
+                <p className="text-xs text-muted-foreground mt-1">Or paste a URL below</p>
                 <Input
                   value={form.image_url}
                   onChange={(e) => setForm({ ...form, image_url: e.target.value })}
                   placeholder="https://example.com/image.jpg"
+                  className="mt-2"
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">

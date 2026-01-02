@@ -8,6 +8,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { ImageUpload } from '@/components/ImageUpload';
 import { toast } from 'sonner';
 import { Plus, Edit, Trash2, Image, GripVertical } from 'lucide-react';
 
@@ -187,11 +188,18 @@ const AdminHeroSlides = () => {
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <Label>Media URL *</Label>
+                <Label>Media *</Label>
+                <ImageUpload
+                  value={form.media_url}
+                  onChange={(url) => setForm({ ...form, media_url: url })}
+                  folder="hero-slides"
+                />
+                <p className="text-xs text-muted-foreground mt-1">Or paste a URL below</p>
                 <Input
                   value={form.media_url}
                   onChange={(e) => setForm({ ...form, media_url: e.target.value })}
                   placeholder="https://example.com/image.jpg"
+                  className="mt-2"
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">

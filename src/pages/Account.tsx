@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
-import { User, MapPin, Package, LogOut, Heart, Edit2, Save, X, ChevronDown, ChevronUp } from 'lucide-react';
+import { User, MapPin, Package, LogOut, Heart, Edit2, Save, X, ChevronDown, ChevronUp, RotateCcw } from 'lucide-react';
 import { AnimatedBackground } from '@/components/AnimatedBackground';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
@@ -10,9 +10,11 @@ import { Button } from '@/components/ui/button';
 import { AddressManager } from '@/components/AddressManager';
 import { BackButton } from '@/components/BackButton';
 import { OrderTrackingTimeline } from '@/components/OrderTrackingTimeline';
+import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/hooks/useAuth';
 import { useWishlistStore } from '@/store/wishlistStore';
 import { useProducts } from '@/hooks/useProducts';
+import { useReturns, useCreateReturn } from '@/hooks/useReturns';
 import { formatPrice } from '@/lib/formatCurrency';
 import { countryCodes } from '@/lib/countryCodes';
 import { supabase } from '@/integrations/supabase/client';
@@ -60,7 +62,10 @@ const Account = () => {
   const navigate = useNavigate();
   const { user, loading, signOut } = useAuth();
   const [scrollProgress, setScrollProgress] = useState(0);
-  const [activeTab, setActiveTab] = useState<'profile' | 'addresses' | 'orders' | 'wishlist'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'addresses' | 'orders' | 'wishlist' | 'returns'>('profile');
+  
+  // Returns data
+  const { data: returns, isLoading: returnsLoading } = useReturns();
   
   // Profile editing state
   const [profile, setProfile] = useState<CustomerProfile | null>(null);
@@ -316,7 +321,23 @@ const Account = () => {
     { id: 'addresses', label: 'Addresses', icon: MapPin },
     { id: 'wishlist', label: 'Wishlist', icon: Heart },
     { id: 'orders', label: 'Orders', icon: Package },
+    { id: 'returns', label: 'Returns', icon: RotateCcw },
   ];
+
+  const getReturnStatusBadge = (status: string) => {
+    switch (status) {
+      case 'pending':
+        return <Badge variant="secondary">Pending</Badge>;
+      case 'approved':
+        return <Badge className="bg-green-100 text-green-800">Approved</Badge>;
+      case 'rejected':
+        return <Badge variant="destructive">Rejected</Badge>;
+      case 'completed':
+        return <Badge className="bg-blue-100 text-blue-800">Completed</Badge>;
+      default:
+        return <Badge variant="outline">{status}</Badge>;
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background relative">
@@ -571,6 +592,61 @@ const Account = () => {
                             <ChevronDown className="h-4 w-4" />
                           </div>
                         </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </motion.div>
+            )}
+
+            {activeTab === 'returns' && (
+              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+                {returnsLoading ? (
+                  <div className="glass-panel p-8 text-center"><p>Loading returns...</p></div>
+                ) : !returns || returns.length === 0 ? (
+                  <div className="glass-panel p-8 text-center">
+                    <RotateCcw className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                    <h2 className="font-display text-2xl tracking-wider mb-2">No Return Requests</h2>
+                    <p className="text-muted-foreground mb-6">
+                      You haven't requested any returns yet. You can request a return from your order details.
+                    </p>
+                    <Button variant="glass-gold" onClick={() => setActiveTab('orders')}>
+                      View Orders
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between mb-4">
+                      <h2 className="font-display text-2xl tracking-wider">Return Requests</h2>
+                      <span className="text-muted-foreground">{returns.length} requests</span>
+                    </div>
+                    {returns.map((returnItem) => (
+                      <div key={returnItem.id} className="glass-panel p-4">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-3 mb-2">
+                              <p className="font-medium">{returnItem.product_name}</p>
+                              {getReturnStatusBadge(returnItem.status)}
+                            </div>
+                            <p className="text-sm text-muted-foreground mb-1">
+                              <span className="font-medium">Reason:</span> {returnItem.reason}
+                            </p>
+                            {returnItem.additional_notes && (
+                              <p className="text-sm text-muted-foreground mb-1">
+                                <span className="font-medium">Notes:</span> {returnItem.additional_notes}
+                              </p>
+                            )}
+                            {returnItem.admin_note && (
+                              <div className="mt-3 p-3 bg-muted/50 rounded">
+                                <p className="text-xs text-muted-foreground mb-1">Admin Response:</p>
+                                <p className="text-sm">{returnItem.admin_note}</p>
+                              </div>
+                            )}
+                            <p className="text-xs text-muted-foreground mt-2">
+                              Submitted: {format(new Date(returnItem.created_at), 'MMM dd, yyyy HH:mm')}
+                            </p>
+                          </div>
+                        </div>
                       </div>
                     ))}
                   </div>
