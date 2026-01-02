@@ -43,6 +43,7 @@ interface Order {
   total: number;
   created_at: string;
   payment_method: string;
+  cancellation_reason: string | null;
 }
 
 interface OrderItem {
@@ -78,6 +79,9 @@ const Account = () => {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
   const [orderDialogOpen, setOrderDialogOpen] = useState(false);
+  const [cancelReason, setCancelReason] = useState('');
+  const [showCancelDialog, setShowCancelDialog] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
   
   // Wishlist - using DB products
   const { items: wishlistItems, removeItem: removeFromWishlist } = useWishlistStore();
@@ -146,25 +150,48 @@ const Account = () => {
   };
 
   const handleCancelOrder = async () => {
-    if (!selectedOrder) return;
+    if (!selectedOrder || !cancelReason.trim()) return;
     
-    if (!confirm('Are you sure you want to cancel this order?')) return;
+    setCancelling(true);
+    try {
+      const { error } = await supabase
+        .from('orders')
+        .update({ 
+          fulfillment_status: 'cancelled',
+          status: 'cancelled',
+          cancellation_reason: cancelReason,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', selectedOrder.id);
 
-    const { error } = await supabase
-      .from('orders')
-      .update({ 
-        fulfillment_status: 'cancelled',
-        status: 'cancelled',
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', selectedOrder.id);
+      if (error) throw error;
 
-    if (error) {
-      toast.error('Failed to cancel order');
-    } else {
+      // Create notification for admin
+      const { data: admins } = await supabase
+        .from('user_roles')
+        .select('user_id')
+        .eq('role', 'admin');
+
+      if (admins && admins.length > 0) {
+        const notifications = admins.map(admin => ({
+          customer_id: admin.user_id,
+          title: 'Order Cancelled',
+          message: `Order ${selectedOrder.order_number} has been cancelled. Reason: ${cancelReason}`,
+          type: 'order'
+        }));
+
+        await supabase.from('notifications').insert(notifications);
+      }
+
       toast.success('Order cancelled successfully');
-      setSelectedOrder({ ...selectedOrder, fulfillment_status: 'cancelled', status: 'cancelled' });
+      setSelectedOrder({ ...selectedOrder, fulfillment_status: 'cancelled', status: 'cancelled', cancellation_reason: cancelReason });
+      setShowCancelDialog(false);
+      setCancelReason('');
       fetchOrders();
+    } catch (error) {
+      toast.error('Failed to cancel order');
+    } finally {
+      setCancelling(false);
     }
   };
 
@@ -566,8 +593,23 @@ const Account = () => {
               {/* Tracking Timeline */}
               <OrderTrackingTimeline 
                 order={selectedOrder} 
-                onCancel={handleCancelOrder}
+                onCancel={() => setShowCancelDialog(true)}
               />
+
+              {/* Cancellation Reason */}
+              {selectedOrder.cancellation_reason && (
+                <div className="p-3 bg-destructive/10 border border-destructive/30 rounded">
+                  <p className="text-sm font-medium text-destructive mb-1">Cancellation Reason</p>
+                  <p className="text-sm text-muted-foreground">{selectedOrder.cancellation_reason}</p>
+                </div>
+              )}
+
+              {/* View Full Tracking Link */}
+              <Button variant="glass" asChild className="w-full">
+                <Link to={`/order/${selectedOrder.order_number}`}>
+                  View Full Order Details
+                </Link>
+              </Button>
 
               {/* Order Items */}
               <div>
@@ -597,6 +639,37 @@ const Account = () => {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Cancel Order Dialog */}
+      <Dialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Cancel Order</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-muted-foreground">Please provide a reason for cancellation:</p>
+            <textarea
+              value={cancelReason}
+              onChange={(e) => setCancelReason(e.target.value)}
+              placeholder="Enter reason for cancellation..."
+              className="w-full bg-secondary/50 border border-white/10 rounded px-4 py-3 focus:outline-none focus:ring-1 focus:ring-primary min-h-[100px]"
+            />
+            <div className="flex gap-3">
+              <Button variant="glass" onClick={() => setShowCancelDialog(false)} className="flex-1">
+                Keep Order
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={handleCancelOrder}
+                disabled={!cancelReason.trim() || cancelling}
+                className="flex-1"
+              >
+                {cancelling ? 'Cancelling...' : 'Cancel Order'}
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 

@@ -95,7 +95,7 @@ export function HeroSection() {
             transition={{ duration: 1, delay: 0.2 }}
           >
             <span className="inline-block text-primary tracking-[0.4em] uppercase text-sm mb-6">
-              Established 2024
+              Established 2025
             </span>
           </motion.div>
 

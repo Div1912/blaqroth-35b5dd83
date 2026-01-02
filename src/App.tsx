@@ -15,6 +15,7 @@ import About from "./pages/About";
 import Account from "./pages/Account";
 import Checkout from "./pages/Checkout";
 import Auth from "./pages/Auth";
+import OrderTracking from "./pages/OrderTracking";
 import NotFound from "./pages/NotFound";
 import AdminLayout from "./pages/admin/AdminLayout";
 import AdminDashboard from "./pages/admin/AdminDashboard";
@@ -45,6 +46,7 @@ const AppContent = () => {
         <Route path="/account" element={<Account />} />
         <Route path="/checkout" element={<Checkout />} />
         <Route path="/auth" element={<Auth />} />
+        <Route path="/order/:orderNumber" element={<OrderTracking />} />
         
         {/* Legal Pages */}
         <Route path="/privacy-policy" element={<PrivacyPolicy />} />
