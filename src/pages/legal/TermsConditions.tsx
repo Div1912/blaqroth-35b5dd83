@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
+import { CartDrawer } from '@/components/CartDrawer';
 import { AnimatedBackground } from '@/components/AnimatedBackground';
 import { BackButton } from '@/components/BackButton';
 import { useState, useEffect } from 'react';
@@ -23,6 +24,7 @@ const TermsConditions = () => {
     <div className="min-h-screen bg-background relative">
       <AnimatedBackground scrollProgress={scrollProgress} />
       <Header />
+      <CartDrawer />
 
       <main className="pt-32 pb-20">
         <div className="container mx-auto px-6 md:px-12 max-w-4xl">

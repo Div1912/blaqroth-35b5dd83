@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Minus, Plus, Heart, ChevronLeft, ChevronRight, Loader2, Ticket } from 'lucide-react';
+import { ArrowLeft, Minus, Plus, Heart, ChevronLeft, ChevronRight, Loader2, Ticket, Truck, RotateCcw } from 'lucide-react';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { CartDrawer } from '@/components/CartDrawer';
@@ -13,6 +13,7 @@ import { useCartStore } from '@/store/cartStore';
 import { useWishlistStore } from '@/store/wishlistStore';
 import { useAuth } from '@/hooks/useAuth';
 import { useActiveCoupons } from '@/hooks/useCoupons';
+import { useShippingConfig, getEstimatedDeliveryDate, getReturnWindow } from '@/hooks/useShippingConfig';
 import { formatPrice } from '@/lib/formatCurrency';
 import { toast } from 'sonner';
 
@@ -26,6 +27,7 @@ const ProductDetail = () => {
   const { data: product, isLoading } = useProduct(id || '');
   const { data: offers } = useActiveOffers();
   const { data: activeCoupons } = useActiveCoupons();
+  const { data: shippingConfig } = useShippingConfig();
   const { addItem, openCart } = useCartStore();
   const { user } = useAuth();
   const { items: wishlistItems, addItem: addToWishlist, removeItem: removeFromWishlist } = useWishlistStore();
@@ -471,6 +473,24 @@ const ProductDetail = () => {
                 >
                   <Heart className={`h-5 w-5 ${isInWishlist ? 'fill-current' : ''}`} />
                 </Button>
+              </div>
+
+              {/* Delivery & Returns Info */}
+              <div className="mt-6 sm:mt-8 space-y-3 border-t border-border pt-6">
+                <div className="flex items-center gap-3 text-sm">
+                  <Truck className="h-5 w-5 text-primary flex-shrink-0" />
+                  <div>
+                    <span className="font-medium">Estimated Delivery:</span>{' '}
+                    <span className="text-muted-foreground">{getEstimatedDeliveryDate(shippingConfig)}</span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 text-sm">
+                  <RotateCcw className="h-5 w-5 text-primary flex-shrink-0" />
+                  <div>
+                    <span className="font-medium">Easy Returns:</span>{' '}
+                    <span className="text-muted-foreground">{getReturnWindow(shippingConfig)} days return policy</span>
+                  </div>
+                </div>
               </div>
 
               {/* Stock Status */}
