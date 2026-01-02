@@ -39,29 +39,30 @@ export function DBProductCard({ product, offers, coupons = [], index = 0 }: DBPr
       className="group"
     >
       <Link to={`/product/${product.slug}`}>
-        <div className="glass-card overflow-hidden hover-lift">
+        <div className="bg-background border border-border rounded-lg overflow-hidden transition-all duration-300 hover:shadow-lg hover:-translate-y-1">
           {/* Image Container */}
-          <div className="relative aspect-[3/4] overflow-hidden bg-secondary/20">
+          <div className="relative aspect-[3/4] overflow-hidden bg-secondary">
             <img
               src={imageUrl}
               alt={product.name}
+              loading="lazy"
               className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
             />
             
             {/* Badges */}
-            <div className="absolute top-4 left-4 flex flex-col gap-2">
+            <div className="absolute top-2 left-2 sm:top-3 sm:left-3 flex flex-col gap-1.5 sm:gap-2">
               {product.is_featured && (
-                <Badge className="bg-primary text-primary-foreground">
+                <Badge className="bg-foreground text-background text-[10px] sm:text-xs">
                   Featured
                 </Badge>
               )}
               {hasDiscount && (
-                <Badge className="bg-destructive text-destructive-foreground">
+                <Badge variant="destructive" className="text-[10px] sm:text-xs">
                   {priceInfo.offerTitle || 'Sale'}
                 </Badge>
               )}
               {isOutOfStock && (
-                <Badge variant="secondary">
+                <Badge variant="secondary" className="text-[10px] sm:text-xs">
                   Out of Stock
                 </Badge>
               )}
@@ -70,26 +71,33 @@ export function DBProductCard({ product, offers, coupons = [], index = 0 }: DBPr
               )}
             </div>
 
-            {/* Quick Add Overlay */}
-            <div className="absolute inset-0 bg-background/60 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
-              <Button variant="glass-gold" size="lg" disabled={isOutOfStock}>
+            {/* Quick View Overlay */}
+            <div className="absolute inset-0 bg-background/80 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
+              <Button variant="editorial" size="sm" disabled={isOutOfStock} className="text-xs sm:text-sm">
                 {isOutOfStock ? 'Out of Stock' : 'Quick View'}
               </Button>
             </div>
           </div>
 
           {/* Info */}
-          <div className="p-4 md:p-6">
-            <h3 className="font-display text-lg md:text-xl mb-2 group-hover:text-primary transition-colors">
+          <div className="p-3 sm:p-4">
+            {/* Category */}
+            {product.category && (
+              <p className="text-[10px] sm:text-xs text-muted-foreground uppercase tracking-wider mb-1">
+                {product.category.name}
+              </p>
+            )}
+            
+            <h3 className="font-display text-sm sm:text-base mb-1.5 sm:mb-2 group-hover:text-muted-foreground transition-colors line-clamp-1">
               {product.name}
             </h3>
             
-            <div className="flex items-center gap-3">
-              <span className="text-foreground font-medium">
+            <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+              <span className="text-foreground font-medium text-sm sm:text-base">
                 {formatPrice(priceInfo.finalPrice)}
               </span>
               {hasDiscount && (
-                <span className="text-muted-foreground line-through text-sm">
+                <span className="text-muted-foreground line-through text-xs sm:text-sm">
                   {formatPrice(priceInfo.originalPrice)}
                 </span>
               )}
@@ -97,24 +105,24 @@ export function DBProductCard({ product, offers, coupons = [], index = 0 }: DBPr
 
             {/* Colors */}
             {colors.length > 0 && (
-              <div className="flex items-center gap-2 mt-3">
+              <div className="flex items-center gap-1.5 sm:gap-2 mt-2 sm:mt-3">
                 {colors.slice(0, 4).map((color) => (
                   <div
                     key={color}
-                    className="w-4 h-4 rounded-full border border-white/20"
+                    className="w-3 h-3 sm:w-4 sm:h-4 rounded-full border border-border"
                     style={{ backgroundColor: color.toLowerCase() }}
                     title={color}
                   />
                 ))}
                 {colors.length > 4 && (
-                  <span className="text-xs text-muted-foreground">+{colors.length - 4}</span>
+                  <span className="text-[10px] sm:text-xs text-muted-foreground">+{colors.length - 4}</span>
                 )}
               </div>
             )}
 
             {/* Stock indicator */}
             {totalStock > 0 && totalStock <= 3 && (
-              <p className="text-xs text-destructive mt-2">Only {totalStock} left!</p>
+              <p className="text-[10px] sm:text-xs text-destructive mt-2">Only {totalStock} left!</p>
             )}
           </div>
         </div>
