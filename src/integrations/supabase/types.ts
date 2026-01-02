@@ -94,6 +94,42 @@ export type Database = {
         }
         Relationships: []
       }
+      announcements: {
+        Row: {
+          created_at: string | null
+          end_date: string | null
+          id: string
+          is_active: boolean | null
+          link: string | null
+          link_text: string | null
+          message: string
+          start_date: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          end_date?: string | null
+          id?: string
+          is_active?: boolean | null
+          link?: string | null
+          link_text?: string | null
+          message: string
+          start_date?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          end_date?: string | null
+          id?: string
+          is_active?: boolean | null
+          link?: string | null
+          link_text?: string | null
+          message?: string
+          start_date?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       cart_items: {
         Row: {
           created_at: string | null
@@ -309,6 +345,90 @@ export type Database = {
           id?: string
           phone?: string | null
           phone_country_code?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      editorial_grid_items: {
+        Row: {
+          created_at: string | null
+          display_order: number | null
+          id: string
+          image_url: string
+          is_active: boolean | null
+          link: string
+          subtitle: string | null
+          title: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          display_order?: number | null
+          id?: string
+          image_url: string
+          is_active?: boolean | null
+          link: string
+          subtitle?: string | null
+          title: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          display_order?: number | null
+          id?: string
+          image_url?: string
+          is_active?: boolean | null
+          link?: string
+          subtitle?: string | null
+          title?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      hero_slides: {
+        Row: {
+          created_at: string | null
+          display_order: number | null
+          headline: string
+          id: string
+          is_active: boolean | null
+          media_type: string | null
+          media_url: string
+          primary_cta_link: string | null
+          primary_cta_text: string | null
+          secondary_cta_link: string | null
+          secondary_cta_text: string | null
+          subheadline: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          display_order?: number | null
+          headline: string
+          id?: string
+          is_active?: boolean | null
+          media_type?: string | null
+          media_url: string
+          primary_cta_link?: string | null
+          primary_cta_text?: string | null
+          secondary_cta_link?: string | null
+          secondary_cta_text?: string | null
+          subheadline?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          display_order?: number | null
+          headline?: string
+          id?: string
+          is_active?: boolean | null
+          media_type?: string | null
+          media_url?: string
+          primary_cta_link?: string | null
+          primary_cta_text?: string | null
+          secondary_cta_link?: string | null
+          secondary_cta_text?: string | null
+          subheadline?: string | null
           updated_at?: string | null
         }
         Relationships: []
@@ -903,6 +1023,107 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      returns: {
+        Row: {
+          additional_notes: string | null
+          admin_note: string | null
+          created_at: string | null
+          customer_id: string
+          id: string
+          order_id: string
+          order_item_id: string | null
+          product_id: string | null
+          product_name: string
+          reason: string
+          status: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          additional_notes?: string | null
+          admin_note?: string | null
+          created_at?: string | null
+          customer_id: string
+          id?: string
+          order_id: string
+          order_item_id?: string | null
+          product_id?: string | null
+          product_name: string
+          reason: string
+          status?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          additional_notes?: string | null
+          admin_note?: string | null
+          created_at?: string | null
+          customer_id?: string
+          id?: string
+          order_id?: string
+          order_item_id?: string | null
+          product_id?: string | null
+          product_name?: string
+          reason?: string
+          status?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "returns_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "returns_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "returns_order_item_id_fkey"
+            columns: ["order_item_id"]
+            isOneToOne: false
+            referencedRelation: "order_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "returns_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      shipping_config: {
+        Row: {
+          config_key: string
+          config_value: string
+          created_at: string | null
+          description: string | null
+          id: string
+          updated_at: string | null
+        }
+        Insert: {
+          config_key: string
+          config_value: string
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          updated_at?: string | null
+        }
+        Update: {
+          config_key?: string
+          config_value?: string
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          updated_at?: string | null
+        }
+        Relationships: []
       }
       user_roles: {
         Row: {
