@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { useNavigate, Outlet, Link, useLocation } from 'react-router-dom';
 import { useAdmin } from '@/hooks/useAdmin';
 import { useAuth } from '@/hooks/useAuth';
-import { Package, ShoppingCart, LayoutDashboard, LogOut, Tag, Layers, FolderTree } from 'lucide-react';
+import { Package, ShoppingCart, LayoutDashboard, LogOut, Tag, Layers, FolderTree, Megaphone, Image, LayoutGrid, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -43,6 +43,10 @@ const AdminLayout = () => {
     { path: '/admin/orders', icon: ShoppingCart, label: 'Orders' },
     { path: '/admin/offers', icon: Tag, label: 'Offers' },
     { path: '/admin/coupons', icon: Tag, label: 'Coupons' },
+    { path: '/admin/announcements', icon: Megaphone, label: 'Announcements' },
+    { path: '/admin/hero-slides', icon: Image, label: 'Hero Slides' },
+    { path: '/admin/editorial-grid', icon: LayoutGrid, label: 'Editorial Grid' },
+    { path: '/admin/returns', icon: RotateCcw, label: 'Returns' },
   ];
 
   return (
