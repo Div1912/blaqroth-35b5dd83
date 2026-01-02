@@ -830,6 +830,7 @@ export type Database = {
         Row: {
           care_instructions: string | null
           category_id: string | null
+          collection_id: string | null
           compare_at_price: number | null
           created_at: string | null
           description: string | null
@@ -849,6 +850,7 @@ export type Database = {
         Insert: {
           care_instructions?: string | null
           category_id?: string | null
+          collection_id?: string | null
           compare_at_price?: number | null
           created_at?: string | null
           description?: string | null
@@ -868,6 +870,7 @@ export type Database = {
         Update: {
           care_instructions?: string | null
           category_id?: string | null
+          collection_id?: string | null
           compare_at_price?: number | null
           created_at?: string | null
           description?: string | null
@@ -890,6 +893,13 @@ export type Database = {
             columns: ["category_id"]
             isOneToOne: false
             referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "products_collection_id_fkey"
+            columns: ["collection_id"]
+            isOneToOne: false
+            referencedRelation: "collections"
             referencedColumns: ["id"]
           },
         ]
