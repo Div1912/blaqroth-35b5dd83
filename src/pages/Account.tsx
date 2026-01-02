@@ -15,11 +15,12 @@ import { useAuth } from '@/hooks/useAuth';
 import { useWishlistStore } from '@/store/wishlistStore';
 import { useProducts } from '@/hooks/useProducts';
 import { useReturns, useCreateReturn } from '@/hooks/useReturns';
+import { useShippingConfig, getReturnWindow } from '@/hooks/useShippingConfig';
 import { formatPrice } from '@/lib/formatCurrency';
 import { countryCodes } from '@/lib/countryCodes';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { format } from 'date-fns';
+import { format, differenceInDays, parseISO } from 'date-fns';
 import {
   Dialog,
   DialogContent,
@@ -44,6 +45,7 @@ interface Order {
   tracking_id: string | null;
   total: number;
   created_at: string;
+  updated_at: string;
   payment_method: string;
   cancellation_reason: string | null;
 }
@@ -67,6 +69,7 @@ const Account = () => {
   
   // Returns data
   const { data: returns, isLoading: returnsLoading } = useReturns();
+  const { data: shippingConfig } = useShippingConfig();
   
   // Profile editing state
   const [profile, setProfile] = useState<CustomerProfile | null>(null);
@@ -729,30 +732,44 @@ const Account = () => {
               <div>
                 <h3 className="font-semibold mb-3">Items</h3>
                 <div className="space-y-2">
-                  {orderItems.map((item) => (
-                    <div key={item.id} className="flex justify-between text-sm p-3 bg-muted/30 rounded">
-                      <div>
-                        <p className="font-medium">{item.product_name}</p>
-                        {(item.color || item.size) && (
-                          <p className="text-muted-foreground text-xs">
-                            {item.color}{item.color && item.size && ' / '}{item.size}
-                          </p>
-                        )}
-                        <p className="text-muted-foreground text-xs">Qty: {item.quantity}</p>
+                  {orderItems.map((item) => {
+                    // Check if return is allowed based on return window
+                    const returnWindowDays = getReturnWindow(shippingConfig);
+                    const deliveryDate = selectedOrder?.updated_at ? parseISO(selectedOrder.updated_at) : new Date();
+                    const daysSinceDelivery = differenceInDays(new Date(), deliveryDate);
+                    const canReturn = selectedOrder?.fulfillment_status === 'delivered' && daysSinceDelivery <= returnWindowDays;
+                    const daysRemaining = returnWindowDays - daysSinceDelivery;
+
+                    return (
+                      <div key={item.id} className="flex justify-between text-sm p-3 bg-muted/30 rounded">
+                        <div>
+                          <p className="font-medium">{item.product_name}</p>
+                          {(item.color || item.size) && (
+                            <p className="text-muted-foreground text-xs">
+                              {item.color}{item.color && item.size && ' / '}{item.size}
+                            </p>
+                          )}
+                          <p className="text-muted-foreground text-xs">Qty: {item.quantity}</p>
+                        </div>
+                        <div className="flex flex-col items-end gap-1">
+                          <span className="font-medium">{formatPrice(item.price * item.quantity)}</span>
+                          {canReturn ? (
+                            <div className="text-right">
+                              <button
+                                onClick={() => openReturnDialog(item)}
+                                className="text-xs text-primary hover:underline"
+                              >
+                                Request Return
+                              </button>
+                              <p className="text-xs text-muted-foreground">{daysRemaining} days left</p>
+                            </div>
+                          ) : selectedOrder?.fulfillment_status === 'delivered' ? (
+                            <p className="text-xs text-muted-foreground">Return window expired</p>
+                          ) : null}
+                        </div>
                       </div>
-                      <div className="flex flex-col items-end gap-1">
-                        <span className="font-medium">{formatPrice(item.price * item.quantity)}</span>
-                        {selectedOrder?.fulfillment_status === 'delivered' && (
-                          <button
-                            onClick={() => openReturnDialog(item)}
-                            className="text-xs text-primary hover:underline"
-                          >
-                            Request Return
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
 

@@ -30,6 +30,7 @@ import AdminAnnouncements from "./pages/admin/AdminAnnouncements";
 import AdminHeroSlides from "./pages/admin/AdminHeroSlides";
 import AdminEditorialGrid from "./pages/admin/AdminEditorialGrid";
 import AdminReturns from "./pages/admin/AdminReturns";
+import AdminShippingSettings from "./pages/admin/AdminShippingSettings";
 import PrivacyPolicy from "./pages/legal/PrivacyPolicy";
 import TermsConditions from "./pages/legal/TermsConditions";
 import RefundPolicy from "./pages/legal/RefundPolicy";
@@ -59,6 +60,7 @@ const AppContent = () => {
             <Route path="hero-slides" element={<AdminHeroSlides />} />
             <Route path="editorial-grid" element={<AdminEditorialGrid />} />
             <Route path="returns" element={<AdminReturns />} />
+            <Route path="settings" element={<AdminShippingSettings />} />
           </Route>
         </Routes>
       ) : (
