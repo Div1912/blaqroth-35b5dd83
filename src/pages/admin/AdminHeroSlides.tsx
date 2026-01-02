@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
+import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,8 +11,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ImageUpload } from '@/components/ImageUpload';
+import { SortableItem } from '@/components/SortableItem';
 import { toast } from 'sonner';
-import { Plus, Edit, Trash2, Image, GripVertical } from 'lucide-react';
+import { Plus, Edit, Trash2, Image } from 'lucide-react';
 
 interface HeroSlide {
   id: string;
@@ -42,6 +45,11 @@ const AdminHeroSlides = () => {
     display_order: 0,
     is_active: true,
   });
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
 
   const { data: slides, isLoading } = useQuery({
     queryKey: ['admin-hero-slides'],
@@ -124,6 +132,36 @@ const AdminHeroSlides = () => {
     onError: () => toast.error('Failed to update status'),
   });
 
+  const reorderMutation = useMutation({
+    mutationFn: async (items: { id: string; display_order: number }[]) => {
+      const promises = items.map(item =>
+        supabase.from('hero_slides').update({ display_order: item.display_order }).eq('id', item.id)
+      );
+      await Promise.all(promises);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-hero-slides'] });
+      toast.success('Order updated');
+    },
+    onError: () => toast.error('Failed to update order'),
+  });
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id || !slides) return;
+
+    const oldIndex = slides.findIndex((s) => s.id === active.id);
+    const newIndex = slides.findIndex((s) => s.id === over.id);
+    const newSlides = arrayMove(slides, oldIndex, newIndex);
+    
+    const updates = newSlides.map((slide, index) => ({
+      id: slide.id,
+      display_order: index + 1,
+    }));
+    
+    reorderMutation.mutate(updates);
+  };
+
   const resetForm = () => {
     setForm({
       media_url: '',
@@ -176,7 +214,7 @@ const AdminHeroSlides = () => {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Hero Slides</h1>
-          <p className="text-muted-foreground">Manage homepage hero carousel</p>
+          <p className="text-muted-foreground">Manage homepage hero carousel. Drag to reorder.</p>
         </div>
         <Dialog open={dialogOpen} onOpenChange={(open) => { if (!open) resetForm(); setDialogOpen(open); }}>
           <DialogTrigger asChild>
@@ -304,53 +342,58 @@ const AdminHeroSlides = () => {
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-4">
-          {slides?.map((slide) => (
-            <Card key={slide.id}>
-              <CardContent className="py-4">
-                <div className="flex items-center gap-4">
-                  <GripVertical className="h-5 w-5 text-muted-foreground cursor-grab" />
-                  <div className="w-24 h-16 bg-muted rounded overflow-hidden flex-shrink-0">
-                    {slide.media_type === 'video' ? (
-                      <video src={slide.media_url} className="w-full h-full object-cover" muted />
-                    ) : (
-                      <img src={slide.media_url} alt={slide.headline} className="w-full h-full object-cover" />
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium truncate">{slide.headline}</p>
-                    {slide.subheadline && (
-                      <p className="text-sm text-muted-foreground truncate">{slide.subheadline}</p>
-                    )}
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Order: {slide.display_order} • {slide.media_type}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Switch
-                      checked={slide.is_active}
-                      onCheckedChange={(checked) => toggleActive.mutate({ id: slide.id, is_active: checked })}
-                    />
-                    <Button variant="ghost" size="icon" onClick={() => openEdit(slide)}>
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => {
-                        if (confirm('Delete this slide?')) {
-                          deleteMutation.mutate(slide.id);
-                        }
-                      }}
-                    >
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <SortableContext items={slides?.map(s => s.id) || []} strategy={verticalListSortingStrategy}>
+            <div className="space-y-4">
+              {slides?.map((slide) => (
+                <SortableItem key={slide.id} id={slide.id}>
+                  <Card>
+                    <CardContent className="py-4">
+                      <div className="flex items-center gap-4">
+                        <div className="w-24 h-16 bg-muted rounded overflow-hidden flex-shrink-0">
+                          {slide.media_type === 'video' ? (
+                            <video src={slide.media_url} className="w-full h-full object-cover" muted />
+                          ) : (
+                            <img src={slide.media_url} alt={slide.headline} className="w-full h-full object-cover" />
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium truncate">{slide.headline}</p>
+                          {slide.subheadline && (
+                            <p className="text-sm text-muted-foreground truncate">{slide.subheadline}</p>
+                          )}
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Order: {slide.display_order} • {slide.media_type}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Switch
+                            checked={slide.is_active}
+                            onCheckedChange={(checked) => toggleActive.mutate({ id: slide.id, is_active: checked })}
+                          />
+                          <Button variant="ghost" size="icon" onClick={() => openEdit(slide)}>
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => {
+                              if (confirm('Delete this slide?')) {
+                                deleteMutation.mutate(slide.id);
+                              }
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </SortableItem>
+              ))}
+            </div>
+          </SortableContext>
+        </DndContext>
       )}
     </div>
   );
