@@ -1,11 +1,57 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type",
+};
+
+// Valid order statuses
+const VALID_STATUSES = ['processing', 'shipped', 'delivered', 'cancelled', 'pending', 'confirmed'] as const;
+type OrderStatus = typeof VALID_STATUSES[number];
+
+// Input validation functions
+const isValidEmail = (email: string): boolean => {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email) && email.length <= 255;
+};
+
+const isValidOrderNumber = (orderNumber: string): boolean => {
+  // Order numbers should be alphanumeric with possible hyphens
+  const orderRegex = /^[A-Za-z0-9-]{1,50}$/;
+  return orderRegex.test(orderNumber);
+};
+
+const sanitizeHtml = (str: string): string => {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+};
+
+const isValidTrackingId = (trackingId: string): boolean => {
+  // Tracking IDs are typically alphanumeric
+  const trackingRegex = /^[A-Za-z0-9-]{1,100}$/;
+  return trackingRegex.test(trackingId);
+};
+
+const isValidShippingPartner = (partner: string): boolean => {
+  // Shipping partner names should be alphanumeric with spaces
+  const partnerRegex = /^[A-Za-z0-9\s-]{1,100}$/;
+  return partnerRegex.test(partner);
+};
+
+const isValidCustomerName = (name: string): boolean => {
+  // Names should be letters, spaces, and common characters
+  const nameRegex = /^[A-Za-z\s.'-]{1,100}$/;
+  return nameRegex.test(name);
 };
 
 interface OrderStatusEmailRequest {
@@ -18,13 +64,16 @@ interface OrderStatusEmailRequest {
 }
 
 const getStatusMessage = (status: string, trackingId?: string, shippingPartner?: string) => {
+  const sanitizedTrackingId = trackingId ? sanitizeHtml(trackingId) : undefined;
+  const sanitizedPartner = shippingPartner ? sanitizeHtml(shippingPartner) : undefined;
+  
   switch (status.toLowerCase()) {
     case 'shipped':
       return {
         subject: 'Your Order Has Been Shipped! 📦',
         heading: 'Great news! Your order is on its way!',
-        message: trackingId 
-          ? `Your package has been shipped${shippingPartner ? ` via ${shippingPartner}` : ''}. Track your order using the tracking ID: <strong>${trackingId}</strong>`
+        message: sanitizedTrackingId 
+          ? `Your package has been shipped${sanitizedPartner ? ` via ${sanitizedPartner}` : ''}. Track your order using the tracking ID: <strong>${sanitizedTrackingId}</strong>`
           : 'Your package has been shipped and is on its way to you.',
         color: '#3b82f6'
       };
@@ -51,9 +100,9 @@ const getStatusMessage = (status: string, trackingId?: string, shippingPartner?:
       };
     default:
       return {
-        subject: `Order Status Update: ${status}`,
+        subject: `Order Status Update: ${sanitizeHtml(status)}`,
         heading: `Your order status has been updated`,
-        message: `Your order status is now: ${status}`,
+        message: `Your order status is now: ${sanitizeHtml(status)}`,
         color: '#6b7280'
       };
   }
@@ -67,10 +116,113 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
-    const { email, customerName, orderNumber, newStatus, trackingId, shippingPartner }: OrderStatusEmailRequest = await req.json();
-    
-    console.log(`Sending status email to ${email} for order ${orderNumber}, status: ${newStatus}`);
+    // Verify authentication
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      console.log("Missing authorization header");
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized' }),
+        { status: 401, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
 
+    // Initialize Supabase client
+    const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
+    
+    // Verify user token
+    const token = authHeader.replace('Bearer ', '');
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    
+    if (authError || !user) {
+      console.log("Invalid token:", authError?.message);
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized' }),
+        { status: 401, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    // Check if user has admin role
+    const { data: roleData, error: roleError } = await supabase
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', user.id)
+      .eq('role', 'admin')
+      .maybeSingle();
+
+    if (roleError || !roleData) {
+      console.log("User is not an admin:", user.id);
+      return new Response(
+        JSON.stringify({ error: 'Forbidden - Admin access required' }),
+        { status: 403, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    // Parse and validate input
+    let requestData: OrderStatusEmailRequest;
+    try {
+      requestData = await req.json();
+    } catch {
+      return new Response(
+        JSON.stringify({ error: 'Invalid JSON body' }),
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    const { email, customerName, orderNumber, newStatus, trackingId, shippingPartner } = requestData;
+    
+    // Validate required fields
+    if (!email || !customerName || !orderNumber || !newStatus) {
+      return new Response(
+        JSON.stringify({ error: 'Missing required fields: email, customerName, orderNumber, newStatus' }),
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    // Validate email format
+    if (!isValidEmail(email)) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid email format' }),
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    // Validate customer name
+    if (!isValidCustomerName(customerName)) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid customer name format' }),
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    // Validate order number
+    if (!isValidOrderNumber(orderNumber)) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid order number format' }),
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    // Validate tracking ID if provided
+    if (trackingId && !isValidTrackingId(trackingId)) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid tracking ID format' }),
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    // Validate shipping partner if provided
+    if (shippingPartner && !isValidShippingPartner(shippingPartner)) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid shipping partner format' }),
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    console.log(`Admin ${user.email} sending status email to ${email} for order ${orderNumber}, status: ${newStatus}`);
+
+    // Sanitize all user input for HTML
+    const sanitizedCustomerName = sanitizeHtml(customerName);
+    const sanitizedOrderNumber = sanitizeHtml(orderNumber);
     const statusInfo = getStatusMessage(newStatus, trackingId, shippingPartner);
 
     const emailResponse = await fetch("https://api.resend.com/emails", {
@@ -82,7 +234,7 @@ const handler = async (req: Request): Promise<Response> => {
       body: JSON.stringify({
         from: "AUREA <onboarding@resend.dev>",
         to: [email],
-        subject: `${statusInfo.subject} - Order #${orderNumber}`,
+        subject: `${statusInfo.subject} - Order #${sanitizedOrderNumber}`,
         html: `
         <!DOCTYPE html>
         <html>
@@ -106,7 +258,7 @@ const handler = async (req: Request): Promise<Response> => {
                   <tr>
                     <td style="padding: 30px 40px 20px; text-align: center;">
                       <span style="display: inline-block; padding: 8px 24px; background-color: ${statusInfo.color}20; color: ${statusInfo.color}; border-radius: 50px; font-size: 14px; letter-spacing: 2px; text-transform: uppercase; border: 1px solid ${statusInfo.color}40;">
-                        ${newStatus}
+                        ${sanitizeHtml(newStatus)}
                       </span>
                     </td>
                   </tr>
@@ -118,7 +270,7 @@ const handler = async (req: Request): Promise<Response> => {
                         ${statusInfo.heading}
                       </h2>
                       <p style="margin: 0 0 25px; font-size: 16px; line-height: 1.6; color: #a3a3a3; text-align: center;">
-                        Hi ${customerName}, ${statusInfo.message}
+                        Hi ${sanitizedCustomerName}, ${statusInfo.message}
                       </p>
                     </td>
                   </tr>
@@ -132,18 +284,18 @@ const handler = async (req: Request): Promise<Response> => {
                             <table width="100%" cellpadding="0" cellspacing="0">
                               <tr>
                                 <td style="color: #a3a3a3; font-size: 14px; padding-bottom: 10px;">Order Number</td>
-                                <td style="color: #ffffff; font-size: 14px; text-align: right; padding-bottom: 10px; font-weight: 500;">#${orderNumber}</td>
+                                <td style="color: #ffffff; font-size: 14px; text-align: right; padding-bottom: 10px; font-weight: 500;">#${sanitizedOrderNumber}</td>
                               </tr>
                               ${trackingId ? `
                               <tr>
                                 <td style="color: #a3a3a3; font-size: 14px; padding-bottom: 10px;">Tracking ID</td>
-                                <td style="color: #c9a962; font-size: 14px; text-align: right; padding-bottom: 10px; font-weight: 500;">${trackingId}</td>
+                                <td style="color: #c9a962; font-size: 14px; text-align: right; padding-bottom: 10px; font-weight: 500;">${sanitizeHtml(trackingId)}</td>
                               </tr>
                               ` : ''}
                               ${shippingPartner ? `
                               <tr>
                                 <td style="color: #a3a3a3; font-size: 14px;">Shipping Partner</td>
-                                <td style="color: #ffffff; font-size: 14px; text-align: right;">${shippingPartner}</td>
+                                <td style="color: #ffffff; font-size: 14px; text-align: right;">${sanitizeHtml(shippingPartner)}</td>
                               </tr>
                               ` : ''}
                             </table>
@@ -156,7 +308,7 @@ const handler = async (req: Request): Promise<Response> => {
                   <!-- CTA Button -->
                   <tr>
                     <td style="padding: 0 40px 40px; text-align: center;">
-                      <a href="https://aurea-store.lovable.app/order/${orderNumber}" 
+                      <a href="https://aurea-store.lovable.app/order/${encodeURIComponent(orderNumber)}" 
                          style="display: inline-block; padding: 14px 32px; background: linear-gradient(135deg, #c9a962 0%, #a8893f 100%); color: #000000; text-decoration: none; font-size: 14px; font-weight: 600; letter-spacing: 1px; border-radius: 8px; text-transform: uppercase;">
                         Track Your Order
                       </a>
@@ -194,7 +346,7 @@ const handler = async (req: Request): Promise<Response> => {
   } catch (error: any) {
     console.error("Error in send-order-status-email function:", error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: 'Internal server error' }),
       {
         status: 500,
         headers: { "Content-Type": "application/json", ...corsHeaders },
