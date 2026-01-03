@@ -63,7 +63,7 @@ interface OrderStatusEmailRequest {
   shippingPartner?: string;
 }
 
-const getStatusMessage = (status: string, trackingId?: string, shippingPartner?: string) => {
+const getDefaultStatusMessage = (status: string, trackingId?: string, shippingPartner?: string) => {
   const sanitizedTrackingId = trackingId ? sanitizeHtml(trackingId) : undefined;
   const sanitizedPartner = shippingPartner ? sanitizeHtml(shippingPartner) : undefined;
   
@@ -106,6 +106,28 @@ const getStatusMessage = (status: string, trackingId?: string, shippingPartner?:
         color: '#6b7280'
       };
   }
+};
+
+// Process template variables
+const processTemplate = (
+  template: { subject: string; heading: string; message: string; color: string },
+  variables: { orderNumber: string; trackingId?: string; shippingPartner?: string; customerName?: string }
+) => {
+  const processStr = (str: string) => {
+    let result = str;
+    result = result.replace(/\{\{order_number\}\}/g, variables.orderNumber);
+    result = result.replace(/\{\{tracking_id\}\}/g, variables.trackingId || '');
+    result = result.replace(/\{\{shipping_partner\}\}/g, variables.shippingPartner ? ` via ${variables.shippingPartner}` : '');
+    result = result.replace(/\{\{customer_name\}\}/g, variables.customerName || 'Valued Customer');
+    return result;
+  };
+  
+  return {
+    subject: processStr(template.subject),
+    heading: processStr(template.heading),
+    message: processStr(template.message),
+    color: template.color
+  };
 };
 
 const handler = async (req: Request): Promise<Response> => {
@@ -223,7 +245,37 @@ const handler = async (req: Request): Promise<Response> => {
     // Sanitize all user input for HTML
     const sanitizedCustomerName = sanitizeHtml(customerName);
     const sanitizedOrderNumber = sanitizeHtml(orderNumber);
-    const statusInfo = getStatusMessage(newStatus, trackingId, shippingPartner);
+    
+    // Try to fetch custom template from database
+    const templateType = `order_${newStatus.toLowerCase()}`;
+    const { data: customTemplate } = await supabase
+      .from('email_templates')
+      .select('subject, heading, message, color')
+      .eq('template_type', templateType)
+      .eq('is_active', true)
+      .maybeSingle();
+    
+    let statusInfo;
+    if (customTemplate) {
+      // Use custom template with variable substitution
+      statusInfo = processTemplate(
+        { 
+          subject: customTemplate.subject, 
+          heading: customTemplate.heading, 
+          message: customTemplate.message, 
+          color: customTemplate.color || '#c9a962' 
+        },
+        { 
+          orderNumber: sanitizedOrderNumber, 
+          trackingId: trackingId ? sanitizeHtml(trackingId) : undefined, 
+          shippingPartner: shippingPartner ? sanitizeHtml(shippingPartner) : undefined,
+          customerName: sanitizedCustomerName 
+        }
+      );
+    } else {
+      // Fall back to default template
+      statusInfo = getDefaultStatusMessage(newStatus, trackingId, shippingPartner);
+    }
 
     const emailResponse = await fetch("https://api.resend.com/emails", {
       method: "POST",

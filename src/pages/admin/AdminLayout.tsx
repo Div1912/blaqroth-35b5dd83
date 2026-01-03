@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { useNavigate, Outlet, Link, useLocation } from 'react-router-dom';
 import { useAdmin } from '@/hooks/useAdmin';
 import { useAuth } from '@/hooks/useAuth';
-import { Package, ShoppingCart, LayoutDashboard, LogOut, Tag, Layers, FolderTree, Megaphone, Image, LayoutGrid, RotateCcw, Settings, Home, Mail } from 'lucide-react';
+import { Package, ShoppingCart, LayoutDashboard, LogOut, Tag, Layers, FolderTree, Megaphone, Image, LayoutGrid, RotateCcw, Settings, Home, Mail, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -47,6 +47,7 @@ const AdminLayout = () => {
     { path: '/admin/hero-slides', icon: Image, label: 'Hero Slides' },
     { path: '/admin/editorial-grid', icon: LayoutGrid, label: 'Editorial Grid' },
     { path: '/admin/returns', icon: RotateCcw, label: 'Returns' },
+    { path: '/admin/email-templates', icon: FileText, label: 'Email Templates' },
     { path: '/admin/promotional-emails', icon: Mail, label: 'Promotional Emails' },
     { path: '/admin/settings', icon: Settings, label: 'Settings' },
   ];

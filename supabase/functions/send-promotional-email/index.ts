@@ -31,7 +31,9 @@ interface PromotionalEmailRequest {
   message: string;
   ctaText?: string;
   ctaLink?: string;
+  color?: string;
   recipientEmails?: string[]; // If not provided, send to all customers
+  useTemplate?: boolean; // If true, load default promotional template from DB
 }
 
 const handler = async (req: Request): Promise<Response> => {
@@ -94,7 +96,7 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
-    const { subject, heading, message, ctaText, ctaLink, recipientEmails } = requestData;
+    const { subject, heading, message, ctaText, ctaLink, color, recipientEmails, useTemplate } = requestData;
     
     // Validate required fields
     if (!subject || !heading || !message) {
@@ -144,11 +146,37 @@ const handler = async (req: Request): Promise<Response> => {
     console.log(`Admin ${user.email} sending promotional email to ${emails.length} recipients`);
 
     // Sanitize content
-    const sanitizedSubject = sanitizeHtml(subject);
-    const sanitizedHeading = sanitizeHtml(heading);
-    const sanitizedMessage = message; // Keep HTML for message content
-    const sanitizedCtaText = ctaText ? sanitizeHtml(ctaText) : 'Shop Now';
-    const sanitizedCtaLink = ctaLink || 'https://blaqroth.site/shop';
+    let finalSubject = subject;
+    let finalHeading = heading;
+    let finalMessage = message;
+    let finalCtaText = ctaText || 'Shop Now';
+    let finalCtaLink = ctaLink || 'https://blaqroth.site/shop';
+    let accentColor = color || '#c9a962';
+    
+    // If useTemplate is true, try to load promotional template
+    if (useTemplate) {
+      const { data: template } = await supabase
+        .from('email_templates')
+        .select('subject, heading, message, cta_text, cta_link, color')
+        .eq('template_type', 'promotional_default')
+        .eq('is_active', true)
+        .maybeSingle();
+      
+      if (template) {
+        finalSubject = template.subject;
+        finalHeading = template.heading;
+        finalMessage = template.message;
+        finalCtaText = template.cta_text || finalCtaText;
+        finalCtaLink = template.cta_link || finalCtaLink;
+        accentColor = template.color || accentColor;
+      }
+    }
+
+    const sanitizedSubject = sanitizeHtml(finalSubject);
+    const sanitizedHeading = sanitizeHtml(finalHeading);
+    const sanitizedMessage = finalMessage; // Keep HTML for message content
+    const sanitizedCtaText = sanitizeHtml(finalCtaText);
+    const sanitizedCtaLink = finalCtaLink;
 
     // Send emails in batches of 50 (Resend limit)
     const batchSize = 50;
@@ -199,11 +227,10 @@ const handler = async (req: Request): Promise<Response> => {
                         </td>
                       </tr>
                       
-                      <!-- CTA Button -->
                       <tr>
                         <td style="padding: 0 40px 40px; text-align: center;">
                           <a href="${sanitizedCtaLink}" 
-                             style="display: inline-block; padding: 16px 40px; background: linear-gradient(135deg, #c9a962 0%, #a8893f 100%); color: #000000; text-decoration: none; font-size: 14px; font-weight: 600; letter-spacing: 2px; border-radius: 8px; text-transform: uppercase;">
+                             style="display: inline-block; padding: 16px 40px; background: linear-gradient(135deg, ${accentColor} 0%, ${accentColor}cc 100%); color: #000000; text-decoration: none; font-size: 14px; font-weight: 600; letter-spacing: 2px; border-radius: 8px; text-transform: uppercase;">
                             ${sanitizedCtaText}
                           </a>
                         </td>
