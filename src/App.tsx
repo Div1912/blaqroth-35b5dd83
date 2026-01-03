@@ -1,13 +1,14 @@
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import { ThemeProvider } from "next-themes";
 import { AuthProvider } from "@/hooks/useAuth";
 import { GlobalLoader } from "@/components/GlobalLoader";
 import { useGlobalLoader } from "@/hooks/useGlobalLoader";
 import { PageTransition } from "@/components/PageTransition";
+import { createQueryClient } from "@/lib/queryConfig";
 import Index from "./pages/Index";
 import Shop from "./pages/Shop";
 import ProductDetail from "./pages/ProductDetail";
@@ -36,7 +37,7 @@ import TermsConditions from "./pages/legal/TermsConditions";
 import RefundPolicy from "./pages/legal/RefundPolicy";
 import Contact from "./pages/legal/Contact";
 
-const queryClient = new QueryClient();
+const queryClient = createQueryClient();
 
 const AppContent = () => {
   const { isLoading } = useGlobalLoader();

@@ -1,28 +1,15 @@
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { CACHE_TIMES, QUERY_KEYS } from '@/lib/queryConfig';
+import { fetchActiveAnnouncement, type Announcement } from '@/lib/data/content';
 
-interface Announcement {
-  id: string;
-  message: string;
-  link: string | null;
-  link_text: string | null;
-  is_active: boolean;
-}
+// Re-export type for backward compatibility
+export type { Announcement };
 
 export function useAnnouncements() {
   return useQuery({
-    queryKey: ['announcements'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('announcements')
-        .select('*')
-        .eq('is_active', true)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      
-      if (error) throw error;
-      return data as Announcement | null;
-    },
+    queryKey: QUERY_KEYS.announcements,
+    queryFn: fetchActiveAnnouncement,
+    staleTime: CACHE_TIMES.PUBLIC_DATA,
+    gcTime: CACHE_TIMES.GC_TIME,
   });
 }

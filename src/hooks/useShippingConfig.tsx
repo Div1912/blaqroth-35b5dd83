@@ -1,32 +1,14 @@
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
 import { addDays, format } from 'date-fns';
-
-interface ShippingConfig {
-  id: string;
-  config_key: string;
-  config_value: string;
-  description: string | null;
-}
+import { CACHE_TIMES, QUERY_KEYS } from '@/lib/queryConfig';
+import { fetchShippingConfig } from '@/lib/data/content';
 
 export function useShippingConfig() {
   return useQuery({
-    queryKey: ['shipping-config'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('shipping_config')
-        .select('*');
-      
-      if (error) throw error;
-      
-      // Convert to a key-value map for easy access
-      const configMap: Record<string, string> = {};
-      (data || []).forEach((item: ShippingConfig) => {
-        configMap[item.config_key] = item.config_value;
-      });
-      
-      return configMap;
-    },
+    queryKey: QUERY_KEYS.shippingConfig,
+    queryFn: fetchShippingConfig,
+    staleTime: CACHE_TIMES.STATIC_DATA,
+    gcTime: CACHE_TIMES.GC_TIME,
   });
 }
 
