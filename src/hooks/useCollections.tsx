@@ -1,24 +1,16 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { CACHE_TIMES, QUERY_KEYS } from '@/lib/queryConfig';
+import { fetchCollections, fetchCollection, type Collection } from '@/lib/data/collections';
 
-export interface Collection {
-  id: string;
-  name: string;
-  slug: string;
-  description: string | null;
-  color: string | null;
-  image_url: string | null;
-  display_order: number | null;
-  is_active: boolean | null;
-  created_at: string | null;
-  updated_at: string | null;
-}
+// Re-export type for backward compatibility
+export type { Collection };
 
 export const useCollections = (includeInactive = false) => {
   const queryClient = useQueryClient();
 
-  // Set up real-time subscription
+  // Set up real-time subscription for admin updates
   useEffect(() => {
     const channel = supabase
       .channel('collections-changes')
@@ -27,7 +19,7 @@ export const useCollections = (includeInactive = false) => {
         { event: '*', schema: 'public', table: 'collections' },
         () => {
           // Invalidate and refetch collections when any change occurs
-          queryClient.invalidateQueries({ queryKey: ['collections'] });
+          queryClient.invalidateQueries({ queryKey: QUERY_KEYS.collections });
         }
       )
       .subscribe();
@@ -38,40 +30,19 @@ export const useCollections = (includeInactive = false) => {
   }, [queryClient]);
 
   return useQuery({
-    queryKey: ['collections', includeInactive],
-    queryFn: async () => {
-      let query = supabase
-        .from('collections')
-        .select('*')
-        .order('display_order', { ascending: true });
-
-      // For public pages, only show active collections
-      // Admin pages will pass includeInactive=true and RLS will handle access
-      if (!includeInactive) {
-        query = query.eq('is_active', true);
-      }
-
-      const { data, error } = await query;
-
-      if (error) throw error;
-      return data as Collection[];
-    },
+    queryKey: [...QUERY_KEYS.collections, includeInactive],
+    queryFn: () => fetchCollections(includeInactive),
+    staleTime: CACHE_TIMES.STATIC_DATA,
+    gcTime: CACHE_TIMES.GC_TIME,
   });
 };
 
 export const useCollection = (slug: string) => {
   return useQuery({
-    queryKey: ['collection', slug],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('collections')
-        .select('*')
-        .eq('slug', slug)
-        .single();
-
-      if (error) throw error;
-      return data as Collection;
-    },
+    queryKey: QUERY_KEYS.collection(slug),
+    queryFn: () => fetchCollection(slug),
+    staleTime: CACHE_TIMES.STATIC_DATA,
+    gcTime: CACHE_TIMES.GC_TIME,
     enabled: !!slug,
   });
 };
@@ -92,7 +63,7 @@ export const useUpdateCollection = () => {
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['collections'] });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.collections });
     },
   });
 };
@@ -112,7 +83,7 @@ export const useCreateCollection = () => {
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['collections'] });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.collections });
     },
   });
 };
@@ -130,7 +101,7 @@ export const useDeleteCollection = () => {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['collections'] });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.collections });
     },
   });
 };

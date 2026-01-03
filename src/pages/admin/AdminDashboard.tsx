@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -6,6 +7,7 @@ import { Package, ShoppingCart, IndianRupee, TrendingUp, Trash2 } from 'lucide-r
 import { formatCurrency } from '@/lib/formatCurrency';
 import { format, subDays, parseISO } from 'date-fns';
 import { toast } from 'sonner';
+import { QUERY_KEYS } from '@/lib/queryConfig';
 import {
   Dialog,
   DialogContent,
@@ -33,6 +35,7 @@ interface DailyStats {
 }
 
 const AdminDashboard = () => {
+  const queryClient = useQueryClient();
   const [stats, setStats] = useState({
     totalProducts: 0,
     totalOrders: 0,
@@ -137,6 +140,13 @@ const AdminDashboard = () => {
 
       toast.success('All order history has been cleared');
       setShowClearDialog(false);
+      
+      // Invalidate all order-related queries across the app
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.orders });
+      queryClient.invalidateQueries({ queryKey: ['admin-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-returns'] });
+      
+      // Refetch local dashboard stats
       fetchStats();
     } catch (error) {
       console.error('Error clearing history:', error);

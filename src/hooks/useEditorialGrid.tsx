@@ -1,28 +1,15 @@
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { CACHE_TIMES, QUERY_KEYS } from '@/lib/queryConfig';
+import { fetchEditorialGrid, type EditorialGridItem } from '@/lib/data/content';
 
-export interface EditorialGridItem {
-  id: string;
-  title: string;
-  subtitle: string | null;
-  image_url: string;
-  link: string;
-  display_order: number;
-  is_active: boolean;
-}
+// Re-export type for backward compatibility
+export type { EditorialGridItem };
 
 export function useEditorialGrid() {
   return useQuery({
-    queryKey: ['editorial-grid'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('editorial_grid_items')
-        .select('*')
-        .eq('is_active', true)
-        .order('display_order', { ascending: true });
-      
-      if (error) throw error;
-      return (data || []) as EditorialGridItem[];
-    },
+    queryKey: QUERY_KEYS.editorialGrid,
+    queryFn: fetchEditorialGrid,
+    staleTime: CACHE_TIMES.PUBLIC_DATA,
+    gcTime: CACHE_TIMES.GC_TIME,
   });
 }
