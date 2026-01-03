@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Eye, Truck, Package, Clock, CheckCircle, XCircle, History } from 'lucide-react';
+import { Eye, Truck, Package, Clock, CheckCircle, XCircle, History, RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatCurrency } from '@/lib/formatCurrency';
 import { format } from 'date-fns';
@@ -74,6 +74,8 @@ const fulfillmentStatuses = [
   { value: 'shipped', label: 'Shipped', icon: Truck, color: 'bg-blue-100 text-blue-700' },
   { value: 'delivered', label: 'Delivered', icon: CheckCircle, color: 'bg-green-100 text-green-700' },
   { value: 'cancelled', label: 'Cancelled', icon: XCircle, color: 'bg-red-100 text-red-700' },
+  { value: 'return_requested', label: 'Return Requested', icon: Clock, color: 'bg-orange-100 text-orange-700' },
+  { value: 'returned', label: 'Returned', icon: RotateCcw, color: 'bg-gray-100 text-gray-700' },
 ];
 
 const paymentStatuses = [
@@ -226,47 +228,25 @@ const AdminOrders = () => {
       return;
     }
 
-    // Restore stock if order is being cancelled
+    // Release reserved stock if order is being cancelled
     if (newStatus === 'cancelled' && order.fulfillment_status !== 'cancelled') {
-      // Fetch order items to restore stock
+      // Fetch order items to release reserved stock
       const { data: orderItems } = await supabase
         .from('order_items')
-        .select('product_id, variant_id, quantity')
+        .select('variant_id, quantity')
         .eq('order_id', orderId);
 
       if (orderItems) {
         for (const item of orderItems) {
           if (item.variant_id) {
-            // Restore variant stock
-            const { data: variant } = await supabase
-              .from('product_variants')
-              .select('stock_quantity')
-              .eq('id', item.variant_id)
-              .single();
-            
-            if (variant) {
-              await supabase
-                .from('product_variants')
-                .update({ stock_quantity: (variant.stock_quantity || 0) + item.quantity })
-                .eq('id', item.variant_id);
-            }
-          } else if (item.product_id) {
-            // Restore product stock
-            const { data: product } = await supabase
-              .from('products')
-              .select('stock_quantity')
-              .eq('id', item.product_id)
-              .single();
-            
-            if (product) {
-              await supabase
-                .from('products')
-                .update({ stock_quantity: (product.stock_quantity || 0) + item.quantity })
-                .eq('id', item.product_id);
-            }
+            // Release reserved stock using atomic function
+            await supabase.rpc('release_reserved_stock', {
+              p_variant_id: item.variant_id,
+              p_quantity: item.quantity
+            });
           }
         }
-        toast.success('Stock has been restored for cancelled order');
+        toast.success('Reserved stock has been released for cancelled order');
       }
     }
 

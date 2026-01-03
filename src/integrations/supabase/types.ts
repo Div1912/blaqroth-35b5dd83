@@ -912,9 +912,11 @@ export type Database = {
           id: string
           price_adjustment: number | null
           product_id: string
+          reserved_stock: number
           size: string | null
           sku: string | null
           stock_quantity: number | null
+          total_stock: number
         }
         Insert: {
           color?: string | null
@@ -922,9 +924,11 @@ export type Database = {
           id?: string
           price_adjustment?: number | null
           product_id: string
+          reserved_stock?: number
           size?: string | null
           sku?: string | null
           stock_quantity?: number | null
+          total_stock?: number
         }
         Update: {
           color?: string | null
@@ -932,9 +936,11 @@ export type Database = {
           id?: string
           price_adjustment?: number | null
           product_id?: string
+          reserved_stock?: number
           size?: string | null
           sku?: string | null
           stock_quantity?: number | null
+          total_stock?: number
         }
         Relationships: [
           {
@@ -1035,6 +1041,7 @@ export type Database = {
           order_item_id: string | null
           product_id: string | null
           product_name: string
+          quantity: number
           reason: string
           status: string | null
           updated_at: string | null
@@ -1049,6 +1056,7 @@ export type Database = {
           order_item_id?: string | null
           product_id?: string | null
           product_name: string
+          quantity?: number
           reason: string
           status?: string | null
           updated_at?: string | null
@@ -1063,6 +1071,7 @@ export type Database = {
           order_item_id?: string | null
           product_id?: string | null
           product_name?: string
+          quantity?: number
           reason?: string
           status?: string | null
           updated_at?: string | null
@@ -1078,7 +1087,7 @@ export type Database = {
           {
             foreignKeyName: "returns_order_id_fkey"
             columns: ["order_id"]
-            isOneToOne: false
+            isOneToOne: true
             referencedRelation: "orders"
             referencedColumns: ["id"]
           },
@@ -1180,12 +1189,20 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      finalize_sale: {
+        Args: { p_quantity: number; p_variant_id: string }
+        Returns: undefined
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
           _user_id: string
         }
         Returns: boolean
+      }
+      release_reserved_stock: {
+        Args: { p_quantity: number; p_variant_id: string }
+        Returns: undefined
       }
     }
     Enums: {

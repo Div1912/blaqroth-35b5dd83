@@ -22,9 +22,11 @@ export function DBProductCard({ product, offers, coupons = [], index = 0 }: DBPr
   // Get unique colors from variants
   const colors = [...new Set(product.product_variants?.map(v => v.color).filter(Boolean))] as string[];
   
-  // Calculate total stock from variants
-  const totalStock = product.product_variants?.reduce((sum, v) => sum + (v.stock_quantity || 0), 0) || 0;
-  const isOutOfStock = totalStock === 0;
+  // Calculate available stock from variants (total_stock - reserved_stock)
+  const availableStock = product.product_variants?.reduce((sum, v) => {
+    return sum + ((v.total_stock || 0) - (v.reserved_stock || 0));
+  }, 0) || 0;
+  const isOutOfStock = availableStock === 0;
   
   // Calculate price with offers
   const priceInfo = calculateDiscountedPrice(product.price, 0, offers, product.id);
@@ -121,8 +123,8 @@ export function DBProductCard({ product, offers, coupons = [], index = 0 }: DBPr
             )}
 
             {/* Stock indicator */}
-            {totalStock > 0 && totalStock <= 3 && (
-              <p className="text-[10px] sm:text-xs text-destructive mt-2">Only {totalStock} left!</p>
+            {availableStock > 0 && availableStock <= 3 && (
+              <p className="text-[10px] sm:text-xs text-destructive mt-2">Only {availableStock} left!</p>
             )}
           </div>
         </div>
