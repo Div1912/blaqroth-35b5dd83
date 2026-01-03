@@ -385,6 +385,51 @@ export type Database = {
         }
         Relationships: []
       }
+      email_templates: {
+        Row: {
+          color: string | null
+          created_at: string | null
+          cta_link: string | null
+          cta_text: string | null
+          heading: string
+          id: string
+          is_active: boolean | null
+          message: string
+          name: string
+          subject: string
+          template_type: string
+          updated_at: string | null
+        }
+        Insert: {
+          color?: string | null
+          created_at?: string | null
+          cta_link?: string | null
+          cta_text?: string | null
+          heading: string
+          id?: string
+          is_active?: boolean | null
+          message: string
+          name: string
+          subject: string
+          template_type: string
+          updated_at?: string | null
+        }
+        Update: {
+          color?: string | null
+          created_at?: string | null
+          cta_link?: string | null
+          cta_text?: string | null
+          heading?: string
+          id?: string
+          is_active?: boolean | null
+          message?: string
+          name?: string
+          subject?: string
+          template_type?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       hero_slides: {
         Row: {
           created_at: string | null
