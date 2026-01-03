@@ -213,35 +213,65 @@ export function AddressManager() {
   };
 
   const fetchLocationAddress = async () => {
+    // Check for HTTPS - geolocation requires secure context
+    if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost') {
+      toast.error('Location access requires HTTPS. Please use a secure connection.');
+      return;
+    }
+
     if (!navigator.geolocation) {
       toast.error('Geolocation is not supported by your browser');
       return;
     }
 
+    // Check for permissions API support
+    if (navigator.permissions) {
+      try {
+        const permissionStatus = await navigator.permissions.query({ name: 'geolocation' });
+        if (permissionStatus.state === 'denied') {
+          toast.error('Location permission is blocked. Please enable it in your browser settings.');
+          return;
+        }
+      } catch (e) {
+        // Permissions API not fully supported, continue anyway
+        console.log('[Location] Permissions API not available');
+      }
+    }
+
     setFetchingLocation(true);
+    toast.info('Requesting location access...');
     
     navigator.geolocation.getCurrentPosition(
       async (position) => {
         const { latitude, longitude } = position.coords;
+        console.log('[Location] Coordinates received:', latitude, longitude);
         
         try {
           // Using OpenStreetMap's Nominatim API for reverse geocoding (free, no API key needed)
           const response = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&addressdetails=1`
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&addressdetails=1`,
+            {
+              headers: {
+                'Accept': 'application/json',
+                'User-Agent': 'BLAQROTH-Store/1.0'
+              }
+            }
           );
           
           if (!response.ok) {
+            console.error('[Location] API response not ok:', response.status);
             throw new Error('Failed to fetch address');
           }
           
           const data = await response.json();
+          console.log('[Location] Address data:', data);
           const address = data.address;
           
           setFormData(prev => ({
             ...prev,
-            address_line1: [address.house_number, address.road].filter(Boolean).join(' ') || address.suburb || '',
+            address_line1: [address.house_number, address.road].filter(Boolean).join(' ') || address.suburb || address.neighbourhood || '',
             address_line2: address.neighbourhood || address.suburb || '',
-            city: address.city || address.town || address.village || address.county || '',
+            city: address.city || address.town || address.village || address.county || address.state_district || '',
             state: address.state || '',
             postal_code: address.postcode || '',
             country: address.country || 'India',
@@ -249,31 +279,32 @@ export function AddressManager() {
           
           toast.success('Location fetched successfully! Please verify the address.');
         } catch (error) {
-          console.error('Error fetching address:', error);
-          toast.error('Failed to fetch address from location');
+          console.error('[Location] Error fetching address:', error);
+          toast.error('Failed to fetch address from location. Please enter manually.');
         } finally {
           setFetchingLocation(false);
         }
       },
       (error) => {
         setFetchingLocation(false);
+        console.error('[Location] Geolocation error:', error.code, error.message);
         switch (error.code) {
           case error.PERMISSION_DENIED:
-            toast.error('Location permission denied. Please enable location access.');
+            toast.error('Location permission denied. Please enable location access in your browser settings and try again.');
             break;
           case error.POSITION_UNAVAILABLE:
-            toast.error('Location information is unavailable.');
+            toast.error('Location information is unavailable. Please try again or enter address manually.');
             break;
           case error.TIMEOUT:
-            toast.error('Location request timed out.');
+            toast.error('Location request timed out. Please try again.');
             break;
           default:
-            toast.error('An error occurred while fetching location.');
+            toast.error('An error occurred while fetching location. Please enter address manually.');
         }
       },
       {
         enableHighAccuracy: true,
-        timeout: 10000,
+        timeout: 15000,
         maximumAge: 0
       }
     );
