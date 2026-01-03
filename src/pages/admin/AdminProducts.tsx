@@ -43,6 +43,8 @@ interface ProductVariant {
   sku: string | null;
   price_adjustment: number | null;
   stock_quantity: number | null;
+  total_stock: number;
+  reserved_stock: number;
 }
 
 interface ProductImage {
@@ -89,19 +91,19 @@ const AdminProducts = () => {
     collection_id: '',
   });
 
-  // Low stock products
+  // Low stock products - use available_stock (total_stock - reserved_stock)
   const lowStockProducts = products.filter(p => {
-    const totalStock = variants
+    const availableStock = variants
       .filter(v => v.product_id === p.id)
-      .reduce((sum, v) => sum + (v.stock_quantity || 0), 0);
-    return totalStock <= 3 && totalStock > 0;
+      .reduce((sum, v) => sum + ((v.total_stock || 0) - (v.reserved_stock || 0)), 0);
+    return availableStock <= 3 && availableStock > 0;
   });
 
   const outOfStockProducts = products.filter(p => {
-    const totalStock = variants
+    const availableStock = variants
       .filter(v => v.product_id === p.id)
-      .reduce((sum, v) => sum + (v.stock_quantity || 0), 0);
-    return totalStock === 0;
+      .reduce((sum, v) => sum + ((v.total_stock || 0) - (v.reserved_stock || 0)), 0);
+    return availableStock === 0;
   });
 
   useEffect(() => {
@@ -266,6 +268,7 @@ const AdminProducts = () => {
       return;
     }
     
+    const stockQty = parseInt(variantForm.stock_quantity) || 0;
     const { data, error } = await supabase
       .from('product_variants')
       .insert({
@@ -274,7 +277,9 @@ const AdminProducts = () => {
         size: variantForm.size || null,
         sku: variantForm.sku || null,
         price_adjustment: parseFloat(variantForm.price_adjustment) || 0,
-        stock_quantity: parseInt(variantForm.stock_quantity) || 0,
+        stock_quantity: stockQty,
+        total_stock: stockQty,
+        reserved_stock: 0,
       })
       .select()
       .single();
@@ -283,7 +288,7 @@ const AdminProducts = () => {
       toast.error('Failed to add variant');
     } else {
       toast.success('Variant added');
-      setVariants(prev => [...prev, data]);
+      setVariants(prev => [...prev, { ...data, total_stock: stockQty, reserved_stock: 0 }]);
       setVariantForm({ color: '', size: '', sku: '', price_adjustment: '0', stock_quantity: '0' });
     }
   };
@@ -299,15 +304,22 @@ const AdminProducts = () => {
   };
 
   const handleUpdateVariantStock = async (variantId: string, newStock: number) => {
+    // Update total_stock - this represents physical inventory
+    const variant = variants.find(v => v.id === variantId);
+    if (!variant) return;
+    
     const { error } = await supabase
       .from('product_variants')
-      .update({ stock_quantity: newStock })
+      .update({ 
+        stock_quantity: newStock,
+        total_stock: newStock
+      })
       .eq('id', variantId);
 
     if (error) {
       toast.error('Failed to update stock');
     } else {
-      setVariants(prev => prev.map(v => v.id === variantId ? { ...v, stock_quantity: newStock } : v));
+      setVariants(prev => prev.map(v => v.id === variantId ? { ...v, stock_quantity: newStock, total_stock: newStock } : v));
       toast.success('Stock updated');
     }
   };
@@ -410,9 +422,10 @@ const AdminProducts = () => {
     : [];
 
   const getProductStock = (productId: string) => {
+    // Return available stock (total_stock - reserved_stock)
     return variants
       .filter(v => v.product_id === productId)
-      .reduce((sum, v) => sum + (v.stock_quantity || 0), 0);
+      .reduce((sum, v) => sum + ((v.total_stock || 0) - (v.reserved_stock || 0)), 0);
   };
 
   return (
@@ -666,42 +679,55 @@ const AdminProducts = () => {
                       <TableHead>Size</TableHead>
                       <TableHead>SKU</TableHead>
                       <TableHead>Price Adj.</TableHead>
-                      <TableHead>Stock</TableHead>
+                      <TableHead>Total Stock</TableHead>
+                      <TableHead>Reserved</TableHead>
+                      <TableHead>Available</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {productVariants.map((variant) => (
-                      <TableRow key={variant.id}>
-                        <TableCell>{variant.color || '-'}</TableCell>
-                        <TableCell>{variant.size || '-'}</TableCell>
-                        <TableCell>{variant.sku || '-'}</TableCell>
-                        <TableCell>{formatCurrency(variant.price_adjustment || 0)}</TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
+                    {productVariants.map((variant) => {
+                      const availableStock = (variant.total_stock || 0) - (variant.reserved_stock || 0);
+                      return (
+                        <TableRow key={variant.id}>
+                          <TableCell>{variant.color || '-'}</TableCell>
+                          <TableCell>{variant.size || '-'}</TableCell>
+                          <TableCell>{variant.sku || '-'}</TableCell>
+                          <TableCell>{formatCurrency(variant.price_adjustment || 0)}</TableCell>
+                          <TableCell>
                             <Input
                               type="number"
                               className="w-20"
-                              value={variant.stock_quantity || 0}
+                              value={variant.total_stock || 0}
                               onChange={(e) => handleUpdateVariantStock(variant.id, parseInt(e.target.value) || 0)}
                             />
-                            {(variant.stock_quantity || 0) <= 3 && (
-                              <Badge variant={variant.stock_quantity === 0 ? 'destructive' : 'secondary'}>
-                                {variant.stock_quantity === 0 ? 'Out' : 'Low'}
-                              </Badge>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Button variant="ghost" size="icon" onClick={() => handleDeleteVariant(variant.id)}>
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                          </TableCell>
+                          <TableCell>
+                            <span className="text-muted-foreground">{variant.reserved_stock || 0}</span>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <span className={availableStock <= 3 ? 'text-destructive font-medium' : ''}>
+                                {availableStock}
+                              </span>
+                              {availableStock <= 3 && (
+                                <Badge variant={availableStock === 0 ? 'destructive' : 'secondary'}>
+                                  {availableStock === 0 ? 'Out' : 'Low'}
+                                </Badge>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button variant="ghost" size="icon" onClick={() => handleDeleteVariant(variant.id)}>
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                     {productVariants.length === 0 && (
                       <TableRow>
-                        <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                        <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                           No variants yet. Add size/color combinations above.
                         </TableCell>
                       </TableRow>
@@ -781,7 +807,7 @@ const AdminProducts = () => {
               <TableRow>
                 <TableHead>Name</TableHead>
                 <TableHead>Base Price</TableHead>
-                <TableHead>Total Stock</TableHead>
+                <TableHead>Available Stock</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Featured</TableHead>
                 <TableHead className="text-right">Actions</TableHead>

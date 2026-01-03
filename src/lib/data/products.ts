@@ -41,6 +41,8 @@ export interface DBProduct {
     sku: string | null;
     price_adjustment: number | null;
     stock_quantity: number | null;
+    total_stock: number;
+    reserved_stock: number;
     is_active?: boolean;
   }[];
 }
@@ -60,7 +62,7 @@ export async function fetchProducts(options?: FetchProductsOptions): Promise<DBP
       category:categories(id, name, slug),
       collection:collections(id, name, slug),
       product_images(id, url, alt_text, is_primary, display_order),
-      product_variants(id, color, size, sku, price_adjustment, stock_quantity)
+      product_variants(id, color, size, sku, price_adjustment, stock_quantity, total_stock, reserved_stock)
     `)
     .eq('is_active', true)
     .order('created_at', { ascending: false });
@@ -89,7 +91,7 @@ export async function fetchProduct(slug: string): Promise<DBProduct> {
       *,
       category:categories(id, name, slug),
       product_images(id, url, alt_text, is_primary, display_order),
-      product_variants(id, color, size, sku, price_adjustment, stock_quantity)
+      product_variants(id, color, size, sku, price_adjustment, stock_quantity, total_stock, reserved_stock)
     `)
     .eq('slug', slug)
     .eq('is_active', true)

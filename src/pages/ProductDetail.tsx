@@ -68,8 +68,10 @@ const ProductDetail = () => {
     );
   }, [product, selectedColor, selectedSize, hasColorOptions, hasSizeOptions]);
 
-  // Get available stock for current variant
-  const availableStock = currentVariant?.stock_quantity || 0;
+  // Get available stock for current variant (total_stock - reserved_stock)
+  const availableStock = currentVariant 
+    ? (currentVariant.total_stock || 0) - (currentVariant.reserved_stock || 0)
+    : 0;
 
   // Check if size is available for selected color
   const isSizeAvailable = (size: string) => {
@@ -81,7 +83,9 @@ const ProductDetail = () => {
       return colorOk && sizeOk;
     });
 
-    return !!variant && (variant.stock_quantity || 0) > 0;
+    if (!variant) return false;
+    const variantAvailableStock = (variant.total_stock || 0) - (variant.reserved_stock || 0);
+    return variantAvailableStock > 0;
   };
 
   // Get images - sorted by display_order

@@ -14,7 +14,7 @@ import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/hooks/useAuth';
 import { useWishlistStore } from '@/store/wishlistStore';
 import { useProducts } from '@/hooks/useProducts';
-import { useReturns, useCreateReturn } from '@/hooks/useReturns';
+import { useReturns, useCreateReturn, useHasOrderReturn } from '@/hooks/useReturns';
 import { useShippingConfig, getReturnWindow } from '@/hooks/useShippingConfig';
 import { formatPrice } from '@/lib/formatCurrency';
 import { countryCodes } from '@/lib/countryCodes';
@@ -253,6 +253,7 @@ const Account = () => {
         productName: returnItem.product_name,
         reason: returnReason,
         additionalNotes: returnNotes || undefined,
+        quantity: returnItem.quantity, // Pass quantity for stock tracking
       });
       
       toast.success('Return request submitted successfully');
@@ -260,8 +261,9 @@ const Account = () => {
       setReturnItem(null);
       setReturnReason('');
       setReturnNotes('');
-    } catch (error) {
-      toast.error('Failed to submit return request');
+      fetchOrders(); // Refresh orders to show updated status
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to submit return request');
     }
   };
 
@@ -270,42 +272,20 @@ const Account = () => {
     
     setCancelling(true);
     try {
-      // First, restore stock for cancelled items
+      // Release reserved stock for cancelled items using database function
       const { data: orderItemsToRestore } = await supabase
         .from('order_items')
-        .select('product_id, variant_id, quantity')
+        .select('variant_id, quantity')
         .eq('order_id', selectedOrder.id);
 
       if (orderItemsToRestore) {
         for (const item of orderItemsToRestore) {
           if (item.variant_id) {
-            // Restore variant stock
-            const { data: variant } = await supabase
-              .from('product_variants')
-              .select('stock_quantity')
-              .eq('id', item.variant_id)
-              .single();
-            
-            if (variant) {
-              await supabase
-                .from('product_variants')
-                .update({ stock_quantity: (variant.stock_quantity || 0) + item.quantity })
-                .eq('id', item.variant_id);
-            }
-          } else if (item.product_id) {
-            // Restore product stock
-            const { data: product } = await supabase
-              .from('products')
-              .select('stock_quantity')
-              .eq('id', item.product_id)
-              .single();
-            
-            if (product) {
-              await supabase
-                .from('products')
-                .update({ stock_quantity: (product.stock_quantity || 0) + item.quantity })
-                .eq('id', item.product_id);
-            }
+            // Release reserved stock using atomic function
+            await supabase.rpc('release_reserved_stock', {
+              p_variant_id: item.variant_id,
+              p_quantity: item.quantity
+            });
           }
         }
       }
@@ -339,7 +319,7 @@ const Account = () => {
         await supabase.from('notifications').insert(notifications);
       }
 
-      toast.success('Order cancelled successfully. Stock has been restored.');
+      toast.success('Order cancelled successfully. Reserved stock has been released.');
       setSelectedOrder({ ...selectedOrder, fulfillment_status: 'cancelled', status: 'cancelled', cancellation_reason: cancelReason });
       setShowCancelDialog(false);
       setCancelReason('');
@@ -418,8 +398,16 @@ const Account = () => {
       case 'shipped': return 'bg-blue-100 text-blue-700';
       case 'packed': return 'bg-purple-100 text-purple-700';
       case 'cancelled': return 'bg-red-100 text-red-700';
+      case 'return_requested': return 'bg-orange-100 text-orange-700';
+      case 'returned': return 'bg-gray-100 text-gray-700';
       default: return 'bg-gray-100 text-gray-700';
     }
+  };
+
+  const getOrderStatusLabel = (order: Order) => {
+    if (order.status === 'returned') return 'Returned';
+    if (order.status === 'return_requested') return 'Return Requested';
+    return order.fulfillment_status || 'pending';
   };
 
   if (loading) {
@@ -743,8 +731,8 @@ const Account = () => {
                                 </div>
                               </div>
                               <div className="flex items-center gap-3">
-                                <span className={`px-2 py-1 rounded-full text-xs ${getFulfillmentBadgeColor(order.fulfillment_status || 'pending')}`}>
-                                  {order.fulfillment_status || 'pending'}
+                                <span className={`px-2 py-1 rounded-full text-xs ${getFulfillmentBadgeColor(order.status === 'return_requested' || order.status === 'returned' ? order.status : order.fulfillment_status || 'pending')}`}>
+                                  {getOrderStatusLabel(order)}
                                 </span>
                                 <span className="font-medium">{formatPrice(order.total)}</span>
                                 <ChevronDown className="h-4 w-4" />
@@ -890,12 +878,16 @@ const Account = () => {
                     const returnWindowDays = getReturnWindow(shippingConfig);
                     const deliveryDate = selectedOrder?.updated_at ? parseISO(selectedOrder.updated_at) : new Date();
                     const daysSinceDelivery = differenceInDays(new Date(), deliveryDate);
-                    const canReturn = selectedOrder?.fulfillment_status === 'delivered' && daysSinceDelivery <= returnWindowDays;
+                    const canReturnByWindow = selectedOrder?.fulfillment_status === 'delivered' && daysSinceDelivery <= returnWindowDays;
                     const daysRemaining = returnWindowDays - daysSinceDelivery;
                     
-                    // Check if return already exists for this item
-                    const existingReturn = returns?.find(r => r.order_item_id === item.id);
-                    const hasActiveReturn = existingReturn && existingReturn.status !== 'rejected';
+                    // Check if order already has a return request (only ONE return per order allowed)
+                    const orderReturn = returns?.find(r => r.order_id === selectedOrder?.id);
+                    const hasOrderReturn = !!orderReturn;
+                    const isOrderReturned = selectedOrder?.status === 'returned' || selectedOrder?.status === 'return_requested';
+                    
+                    // Can only request return if: delivered, within window, and no existing return for this order
+                    const canReturn = canReturnByWindow && !hasOrderReturn && !isOrderReturned;
 
                     return (
                       <div key={item.id} className="flex gap-3 text-sm p-3 bg-muted/30 rounded">
@@ -927,25 +919,15 @@ const Account = () => {
                         <div className="flex flex-col items-end gap-1">
                           <span className="font-medium">{formatPrice(item.price * item.quantity)}</span>
                           
-                          {/* Show existing return status */}
-                          {existingReturn ? (
+                          {/* Show existing return status for this order */}
+                          {orderReturn ? (
                             <div className="text-right">
                               <Badge 
-                                variant={existingReturn.status === 'approved' ? 'default' : existingReturn.status === 'rejected' ? 'destructive' : 'secondary'}
+                                variant={orderReturn.status === 'completed' ? 'default' : orderReturn.status === 'rejected' ? 'destructive' : 'secondary'}
                                 className="text-xs"
                               >
-                                Return {existingReturn.status}
+                                Return {orderReturn.status}
                               </Badge>
-                              {existingReturn.status === 'rejected' && canReturn && (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => openReturnDialog(item)}
-                                  className="text-xs h-6 px-2 mt-1"
-                                >
-                                  Retry
-                                </Button>
-                              )}
                             </div>
                           ) : canReturn ? (
                             <div className="text-right">
@@ -960,7 +942,7 @@ const Account = () => {
                               </Button>
                               <p className="text-xs text-muted-foreground mt-1">{daysRemaining} days left</p>
                             </div>
-                          ) : selectedOrder?.fulfillment_status === 'delivered' ? (
+                          ) : selectedOrder?.fulfillment_status === 'delivered' && !hasOrderReturn ? (
                             <p className="text-xs text-muted-foreground">Return window expired</p>
                           ) : null}
                         </div>

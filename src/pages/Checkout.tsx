@@ -217,14 +217,12 @@ const Checkout = () => {
     startLoading();
 
     try {
-      // Verify stock for all items
-      const stockUpdates: { variantId: string; quantity: number; currentStock: number }[] = [];
-      
+      // Verify available stock for all items (available = total_stock - reserved_stock)
       for (const item of items) {
         if (item.variantId) {
           const { data: variant, error } = await supabase
             .from('product_variants')
-            .select('stock_quantity')
+            .select('total_stock, reserved_stock')
             .eq('id', item.variantId)
             .single();
 
@@ -232,15 +230,10 @@ const Checkout = () => {
             throw new Error(`Could not verify stock for ${item.product.name}`);
           }
 
-          if ((variant.stock_quantity || 0) < item.quantity) {
-            throw new Error(`Insufficient stock for ${item.product.name} (${item.size}/${item.color})`);
+          const availableStock = (variant.total_stock || 0) - (variant.reserved_stock || 0);
+          if (availableStock < item.quantity) {
+            throw new Error(`Insufficient stock for ${item.product.name} (${item.size}/${item.color}). Only ${availableStock} available.`);
           }
-          
-          stockUpdates.push({
-            variantId: item.variantId,
-            quantity: item.quantity,
-            currentStock: variant.stock_quantity || 0
-          });
         }
       }
 
